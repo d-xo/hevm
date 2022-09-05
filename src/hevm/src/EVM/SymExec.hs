@@ -36,6 +36,30 @@ import Data.List (find)
 import Data.Maybe (isJust, fromJust)
 import Debug.Trace
 
+formatExpr :: Expr a -> String
+formatExpr = go
+  where
+    go = \case
+      ITE c t f -> rstrip . unlines $
+        [ "(ITE (" <> formatExpr c <> ")"
+        , indent' 2 (formatExpr t)
+        , indent' 2 (formatExpr f)
+        , ")"]
+      EVM.Types.Revert buf -> "(Revert " <> formatExpr buf <> ")"
+      Return buf store -> unlines
+          [ "(Return"
+          , indent' 2 ("Data: " <> formatExpr buf)
+          , indent' 2 ("Store: " <> formatExpr store)
+          , ")"
+          ]
+      a -> show a
+
+indent' :: Int -> String -> String
+indent' n = rstrip . unlines . fmap (replicate n ' ' <>) . lines
+
+rstrip :: String -> String
+rstrip = reverse . dropWhile (=='\n') . reverse
+
 data ProofResult a b c = Qed a | Cex b | Timeout c
   deriving (Show)
 type VerifyResult = ProofResult (Expr End) (Expr End, [Text]) (Expr End)
@@ -538,7 +562,9 @@ verify :: SolverGroup -> VM -> Maybe Integer -> Maybe Integer -> Maybe (Fetch.Bl
 verify solvers preState maxIter askSmtIters rpcinfo maybepost = do
   putStrLn "Exploring contract"
   expr <- simplify <$> evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) preState
+  -- expr <- evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) preState
   putStrLn $ "Explored contract (" <> show (Expr.numBranches expr) <> " branches)"
+  putStrLn $ "IR BEGIN\n" <> formatExpr expr <> "IR END\n"
   let leaves = flattenExpr expr
   case maybepost of
     Nothing -> pure [Qed expr]
@@ -555,7 +581,9 @@ verify solvers preState maxIter askSmtIters rpcinfo maybepost = do
       putStrLn $ "Checking for reachability of " <> show (length withQueries) <> " potential property violations"
       putStrLn $ T.unpack . formatSMT2 . fst $ withQueries !! 0
       results <- flip mapConcurrently withQueries $ \(query, leaf) -> do
+        print $ show "query BEGIN\n" <> show query <> "query END\n"
         res <- checkSat' solvers (query, ["txdata", "storage"])
+        print $ show "res BEGIN\n" <> show res <> "res END\n"
         pure (res, leaf)
       let cexs = filter (\(res, _) -> not . isUnsat $ res) results
       pure $ if null cexs then [Qed expr] else fmap toVRes cexs

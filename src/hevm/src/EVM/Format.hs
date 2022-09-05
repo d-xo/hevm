@@ -1,7 +1,7 @@
 {-# Language DataKinds #-}
 {-# Language ImplicitParams #-}
 {-# Language TemplateHaskell #-}
-module EVM.Format where
+module EVM.Format (formatExpr, contractNamePart, contractPathPart, showTree, showTraceTree) where
 
 import Prelude hiding (Word)
 import qualified EVM
@@ -469,26 +469,5 @@ showTree' (Node _ children) =
 --renderTree showBranch showLeaf (Node b []) = Node (showBranch b ++ showLeaf b) []
 --renderTree showBranch showLeaf (Node b cs) = Node (showBranch b) (renderTree showBranch showLeaf <$> cs)
 
-indent' :: Int -> String -> String
-indent' n = rstrip . unlines . fmap (replicate n ' ' <>) . lines
 
-rstrip :: String -> String
-rstrip = reverse . dropWhile (=='\n') . reverse
 
-formatExpr :: Expr a -> String
-formatExpr = go
-  where
-    go = \case
-      ITE c t f -> rstrip . unlines $
-        [ "(ITE (" <> formatExpr c <> ")"
-        , indent' 2 (formatExpr t)
-        , indent' 2 (formatExpr f)
-        , ")"]
-      EVM.Types.Revert buf -> "(Revert " <> formatExpr buf <> ")"
-      Return buf store -> unlines
-          [ "(Return"
-          , indent' 2 ("Data: " <> formatExpr buf)
-          , indent' 2 ("Store: " <> formatExpr store)
-          , ")"
-          ]
-      a -> show a

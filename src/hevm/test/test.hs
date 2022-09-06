@@ -369,9 +369,9 @@ tests = testGroup "hevm"
         --   `cast keccak fun(uint256)` is 0x7a9839c2d990ce5328cd8b99976d9621c6a42636af0ca158cdd29a7d2d8b5974
         --     -> first 4 bytes (MSB) is 0x7a9839c2
         testCase "assert-fail-equal" $ do
-          Just c <- solcRuntime "AssertFailequal"
+          Just c <- solcRuntime "AssertFailEqual"
             [i|
-            contract AssertFailequal {
+            contract AssertFailEqual {
               function fun(uint256 deposit_count) external pure {
                 assert(deposit_count == 0);
                 assert(deposit_count == 11);
@@ -380,14 +380,12 @@ tests = testGroup "hevm"
             |]
           putStrLn "-----------------------\n"
           [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
-          print a
-          print b
-          putStrLn "expected counterexample found"
+          putStrLn "expected 2 counterexamples found"
         ,
         testCase "assert-fail-notequal" $ do
-          Just c <- solcRuntime "AssertFailnotequal"
+          Just c <- solcRuntime "AssertFailNotEqual"
             [i|
-            contract AssertFailnotequal {
+            contract AssertFailNotEqual {
               function fun(uint256 deposit_count) external pure {
                 assert(deposit_count != 0);
                 assert(deposit_count != 11);
@@ -396,11 +394,23 @@ tests = testGroup "hevm"
             |]
           putStrLn "-----------------------\n"
           [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
-          print a
-          print b
-          putStrLn "expected counterexample found"
+          putStrLn "expected 2 counterexamples found"
         ,
-        testCase "Deposit contract loop (z3)" $ do
+        testCase "assert-fail-twoargs" $ do
+          Just c <- solcRuntime "AssertFailTwoParams"
+            [i|
+            contract AssertFailNotEqual {
+              function fun(uint256 deposit_count1, uint256 deposit_count2) external pure {
+                assert(deposit_count1 != 0);
+                assert(deposit_count2 != 11);
+              }
+             }
+            |]
+          putStrLn "-----------------------\n"
+          x <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256, AbiUintType 256])) []
+          putStrLn "expected 2 counterexamples found"
+        ,
+       testCase "Deposit contract loop (z3)" $ do
           Just c <- solcRuntime "Deposit"
             [i|
             contract Deposit {

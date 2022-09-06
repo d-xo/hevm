@@ -399,7 +399,7 @@ tests = testGroup "hevm"
         testCase "assert-fail-twoargs" $ do
           Just c <- solcRuntime "AssertFailTwoParams"
             [i|
-            contract AssertFailNotEqual {
+            contract AssertFailTwoParams {
               function fun(uint256 deposit_count1, uint256 deposit_count2) external pure {
                 assert(deposit_count1 != 0);
                 assert(deposit_count2 != 11);
@@ -407,7 +407,7 @@ tests = testGroup "hevm"
              }
             |]
           putStrLn "-----------------------\n"
-          x <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256, AbiUintType 256])) []
+          [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256, AbiUIntType 256])) []
           putStrLn "expected 2 counterexamples found"
         ,
        testCase "Deposit contract loop (z3)" $ do

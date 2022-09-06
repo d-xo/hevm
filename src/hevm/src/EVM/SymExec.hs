@@ -143,6 +143,7 @@ combineFragments fragments base = go (Lit 4) fragments (base, [])
                              s -> error $ "unsupported cd fragment: " <> show s
 
 
+-- Preparation of the VM for the unit tests
 abstractVM :: Maybe (Text, [AbiType]) -> [String] -> ByteString -> Maybe Precondition -> StorageModel -> VM
 abstractVM typesignature concreteArgs contractCode maybepre storagemodel = finalVm
   where
@@ -150,7 +151,7 @@ abstractVM typesignature concreteArgs contractCode maybepre storagemodel = final
                  Nothing -> (AbstractBuf "txdata", [])
                  Just (name, typs) -> symCalldata name typs concreteArgs (AbstractBuf "txdata")
     store = case storagemodel of
-              SymbolicS -> AbstractStore
+              SymbolicS -> AbstractStore -- test cases are using this
               InitialS -> EmptyStore
               ConcreteS -> ConcreteStore mempty
     caller' = Caller 0
@@ -273,7 +274,7 @@ type Precondition = VM -> Prop
 type Postcondition = VM -> Expr End -> Prop
 
 checkAssert :: SolverGroup -> [Word256] -> ByteString -> Maybe (Text, [AbiType]) -> [String] -> IO [VerifyResult]
-checkAssert solvers errs c signature' concreteArgs = verifyContract solvers c signature' concreteArgs SymbolicS Nothing (Just $ checkAssertions errs)
+checkAssert solvers errs c signature' concreteArgs = verifyContract solvers c signature' concreteArgs SymbolicS Nothing (Just $ checkAssertions errs) -- "SymbolicS" means unit tets are initialized with abstract storage
 
 {- |Checks if an assertion violation has been encountered
 

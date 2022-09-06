@@ -368,12 +368,28 @@ tests = testGroup "hevm"
         -- NOTES:
         --   `cast keccak fun(uint256)` is 0x7a9839c2d990ce5328cd8b99976d9621c6a42636af0ca158cdd29a7d2d8b5974
         --     -> first 4 bytes (MSB) is 0x7a9839c2
-        testCase "assert-fail" $ do
-          Just c <- solcRuntime "AssertFail"
+        testCase "assert-fail-equal" $ do
+          Just c <- solcRuntime "AssertFailequal"
             [i|
-            contract AssertFail {
+            contract AssertFailequal {
               function fun(uint256 deposit_count) external pure {
-                assert(deposit_count != 55);
+                assert(deposit_count == 0);
+                assert(deposit_count == 11);
+              }
+             }
+            |]
+          putStrLn "-----------------------\n"
+          [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
+          print a
+          print b
+          putStrLn "expected counterexample found"
+        ,
+        testCase "assert-fail-notequal" $ do
+          Just c <- solcRuntime "AssertFailnotequal"
+            [i|
+            contract AssertFailnotequal {
+              function fun(uint256 deposit_count) external pure {
+                assert(deposit_count != 0);
                 assert(deposit_count != 11);
               }
              }

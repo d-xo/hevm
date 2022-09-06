@@ -336,7 +336,7 @@ runExpr = do
       EVM.Revert buf -> EVM.Types.Revert buf
       e' -> EVM.Types.TmpErr $ show e'
 
-
+-- NOTE Mate: How does this handle loops?
 -- | Converts a given top level expr into a list of final states and the associated path conditions for each state
 flattenExpr :: Expr End -> [([Prop], Expr End)]
 flattenExpr = go []
@@ -564,7 +564,7 @@ verify solvers preState maxIter askSmtIters rpcinfo maybepost = do
   expr <- simplify <$> evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) preState
   -- expr <- evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) preState
   putStrLn $ "Explored contract (" <> show (Expr.numBranches expr) <> " branches)"
-  putStrLn $ "IR BEGIN\n" <> formatExpr expr <> "IR END\n"
+  putStrLn $ "IR BEGIN\n" <> formatExpr expr <> "\nIR END\n"
   let leaves = flattenExpr expr
   case maybepost of
     Nothing -> pure [Qed expr]

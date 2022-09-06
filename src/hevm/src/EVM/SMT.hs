@@ -356,8 +356,8 @@ data BuilderState = BuilderState
 
 initState :: BuilderState
 initState = BuilderState
-  { bufs = (0, Map.empty)
-  , stores = (0, Map.empty)
+  { bufs = (0, Map.empty)   -- (first_available_slot, map). Used for caching previous writes
+  , stores = (0, Map.empty) -- (first_available_slot, map)
   }
 
 exprToSMT :: Expr a -> State BuilderState Text

@@ -373,15 +373,12 @@ tests = testGroup "hevm"
             [i|
             contract AssertFail {
               function fun(uint256 deposit_count) external pure {
-                assert(deposit_count == 1);
-                assert(deposit_count == 0);
+                assert(deposit_count != 55);
+                assert(deposit_count != 11);
               }
              }
             |]
           putStrLn "-----------------------\n"
-    --      [Qed res] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
-    --      putStrLn $ formatExpr res
-    --      putStrLn $ "successfully explored: " <> show (Expr.numBranches res) <> " paths"
           [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
           print a
           print b

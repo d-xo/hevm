@@ -365,9 +365,6 @@ tests = testGroup "hevm"
           [Cex (l, _)] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("foo()", [])) []
           assertEqual "incorrect revert msg" l (EVM.Types.Revert (ConcreteBuf $ panicMsg 0x01))
         ,
-        -- NOTES:
-        --   `cast keccak fun(uint256)` is 0x7a9839c2d990ce5328cd8b99976d9621c6a42636af0ca158cdd29a7d2d8b5974
-        --     -> first 4 bytes (MSB) is 0x7a9839c2
         testCase "assert-fail-equal" $ do
           Just c <- solcRuntime "AssertFailEqual"
             [i|
@@ -378,7 +375,6 @@ tests = testGroup "hevm"
               }
              }
             |]
-          putStrLn "-----------------------\n"
           [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
           putStrLn "expected 2 counterexamples found"
         ,
@@ -392,7 +388,6 @@ tests = testGroup "hevm"
               }
              }
             |]
-          putStrLn "-----------------------\n"
           [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
           putStrLn "expected 2 counterexamples found"
         ,
@@ -406,11 +401,10 @@ tests = testGroup "hevm"
               }
              }
             |]
-          putStrLn "-----------------------\n"
           [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256, AbiUIntType 256])) []
           putStrLn "expected 2 counterexamples found"
         ,
-       testCase "Deposit contract loop (z3)" $ do
+        testCase "Deposit contract loop (z3)" $ do
           Just c <- solcRuntime "Deposit"
             [i|
             contract Deposit {

@@ -412,12 +412,6 @@ simplify e = if (mapExpr go e == e)
     go o@(EVM.Types.GT (BufLength (WriteWord {})) x)
       | x < Lit 0x32 = Lit 0x1
       | otherwise = o
-    go o@(SLT (Lit a) (Lit b))
-      | (a < 128)  && (b < 128)  && (a < b)  = Lit 1
-      | (a < 128)  && (b < 128)  && (a >= b) = Lit 0
-      | (a >= 128) && (b >= 128) && (a < b)  = Lit 0
-      | (a >= 128) && (b >= 128) && (a >= b) = Lit 1
-      | otherwise = o
     go o@(Sub a b)
       | a == b = Lit 0
       | b == (Lit 0) = a

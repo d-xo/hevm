@@ -279,7 +279,8 @@ checkAssert solvers errs theCode signature' concreteArgs =
 checkAssertions :: [Word256] -> Postcondition
 checkAssertions errs _ = \case
   Revert (ConcreteBuf msg) -> PBool $ msg `notElem` (fmap panicMsg errs)
-  Revert b -> foldl' PAnd (PBool True) (fmap (PNeg . PEq b . ConcreteBuf . panicMsg) errs)
+  Revert b -> foldl' PAnd (PBool True) (fmap (PNeg . PEq b . ConcreteBuf . panicMsg) errs) -- what the hell is this?
+                                                                                           -- when does it trigger?
   _ -> PBool True
 
 -- |By default hevm checks for all assertions except those which result from arithmetic overflow
@@ -550,17 +551,20 @@ verify solvers preState maxIter askSmtIters rpcinfo maybepost = do
   print leaves
   putStrLn "--- leaves END --- "
   case maybepost of
-    Nothing -> pure [Qed expr]
+    Nothing -> pure [Qed expr] -- nothing to verify, hence it's OK
     Just post -> do
       let
         -- Filter out any leaves that can be statically shown to be safe
         canViolate = flip filter leaves $
           \(_, leaf) -> case evalProp (post preState leaf) of
-            PBool True -> False
-            _ -> True
+            PBool True -> False -- don't keep
+            _ -> True           -- keep
         assumes = view constraints preState
         withQueries = fmap (\(pcs, leaf) -> (assertProps (PNeg (post preState leaf) : assumes <> pcs), leaf)) canViolate
       -- Dispatch the remaining branches to the solver to check for violations
+      putStrLn "--- canViolate BEGIN"
+      print canViolate
+      putStrLn "--- canViolate END"
       putStrLn $ "Checking for reachability of " <> show (length withQueries) <> " potential property violations"
       -- putStrLn $ T.unpack . formatSMT2 . fst $ withQueries !! 0
       results <- flip mapConcurrently withQueries $ \(query, leaf) -> do

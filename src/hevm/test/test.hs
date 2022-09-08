@@ -375,7 +375,13 @@ tests = testGroup "hevm"
               }
              }
             |]
-          [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
+          [Cex a, Cex b] <- withSolvers Z3 1 $ \s ->
+              checkAssert
+                s                                          -- solvers
+                defaultPanicCodes                          -- errors
+                c                                          -- the code
+                (Just ("fun(uint256)", [AbiUIntType 256])) -- signature
+                []                                         -- concreteargs
           putStrLn "expected 2 counterexamples found"
         ,
         testCase "assert-fail-notequal" $ do

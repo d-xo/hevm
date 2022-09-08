@@ -274,7 +274,11 @@ type Precondition = VM -> Prop
 type Postcondition = VM -> Expr End -> Prop
 
 checkAssert :: SolverGroup -> [Word256] -> ByteString -> Maybe (Text, [AbiType]) -> [String] -> IO [VerifyResult]
-checkAssert solvers errs c signature' concreteArgs = verifyContract solvers c signature' concreteArgs SymbolicS Nothing (Just $ checkAssertions errs) -- "SymbolicS" means unit tets are initialized with abstract storage
+checkAssert solvers errs theCode signature' concreteArgs =
+    verifyContract solvers theCode signature' concreteArgs
+      SymbolicS                      -- storagemodel. "SymbolicS" = abstract storage (e.g. unit tests)
+      Nothing                        -- Maybe Precondition
+      (Just $ checkAssertions errs)  -- Maybe Postcondition
 
 {- |Checks if an assertion violation has been encountered
 
@@ -315,7 +319,11 @@ panicMsg err = (selector "Panic(uint256)") <> (encodeAbiValue $ AbiUInt 256 err)
 verifyContract :: SolverGroup -> ByteString -> Maybe (Text, [AbiType]) -> [String] -> StorageModel -> Maybe Precondition -> Maybe Postcondition -> IO [VerifyResult]
 verifyContract solvers theCode signature' concreteArgs storagemodel maybepre maybepost = do
   let preState = abstractVM signature' concreteArgs theCode maybepre storagemodel
-  verify solvers preState Nothing Nothing Nothing maybepost
+  verify solvers preState
+    Nothing -- maxSMTiter
+    Nothing -- askSMTIters
+    Nothing -- rpcInfo
+    maybepost
 
 pruneDeadPaths :: [VM] -> [VM]
 pruneDeadPaths =
@@ -337,7 +345,6 @@ runExpr = do
       EVM.Revert buf -> EVM.Types.Revert buf
       e' -> EVM.Types.TmpErr $ show e'
 
--- NOTE Mate: How does this handle loops?
 -- | Converts a given top level expr into a list of final states and the associated path conditions for each state
 flattenExpr :: Expr End -> [([Prop], Expr End)]
 flattenExpr = go []
@@ -561,6 +568,8 @@ verify solvers preState maxIter askSmtIters rpcinfo maybepost = do
   putStrLn $ "Explored contract (" <> show (Expr.numBranches expr) <> " branches)"
   putStrLn $ "----IR BEGIN----\n" <> formatExpr expr <> "\n----IR END----\n"
   let leaves = flattenExpr expr
+  print $ show "leaves:"
+  print leaves
   case maybepost of
     Nothing -> pure [Qed expr]
     Just post -> do

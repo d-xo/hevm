@@ -653,9 +653,9 @@ checkSat' a b = do
 checkSat :: SolverGroup -> [(SMT2, [Text])] -> IO [(SMT2, CheckSatResult)]
 checkSat (SolverGroup taskQueue) scriptsmodels = do
   -- prepare tasks
-  tasks <- forM scriptsmodels $ \(s, ms) -> do
+  tasks <- forM scriptsmodels $ \(script, models) -> do
     res <- newChan
-    pure $ Task s ms res
+    pure $ Task script models res
 
   -- send tasks to solver group
   forM_ tasks (writeChan taskQueue)

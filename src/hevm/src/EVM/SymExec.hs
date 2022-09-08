@@ -509,10 +509,10 @@ reachable solvers = go []
 -- | Evaluate the provided proposition down to its most concrete result
 evalProp :: Prop -> Prop
 evalProp = \case
-  PBool b -> PBool b
-  PNeg p -> case p of
+  o@(PBool b) -> o
+  o@(PNeg p)  -> case p of
               (PBool b) -> PBool (not b)
-              _ -> PNeg p
+              _ -> o
   o@(PEq l r) -> if l == r
              then PBool True
              else o

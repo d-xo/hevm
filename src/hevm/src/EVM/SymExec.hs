@@ -36,30 +36,6 @@ import Data.List (find)
 import Data.Maybe (isJust, fromJust)
 import Debug.Trace
 
-formatExpr :: Expr a -> String
-formatExpr = go
-  where
-    go = \case
-      ITE c t f -> rstrip . unlines $
-        [ "(ITE (" <> formatExpr c <> ")"
-        , indent' 2 (formatExpr t)
-        , indent' 2 (formatExpr f)
-        , ")"]
-      EVM.Types.Revert buf -> "(Revert " <> formatExpr buf <> ")"
-      Return buf store -> unlines
-          [ "(Return"
-          , indent' 2 ("Data: " <> formatExpr buf)
-          , indent' 2 ("Store: " <> formatExpr store)
-          , ")"
-          ]
-      a -> show a
-
-indent' :: Int -> String -> String
-indent' n = rstrip . unlines . fmap (replicate n ' ' <>) . lines
-
-rstrip :: String -> String
-rstrip = reverse . dropWhile (=='\n') . reverse
-
 data ProofResult a b c = Qed a | Cex b | Timeout c
   deriving (Show)
 type VerifyResult = ProofResult (Expr End) (Expr End, [Text]) (Expr End)

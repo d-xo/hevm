@@ -9,7 +9,6 @@ import EVM.Dapp (DappInfo (..), dappSolcByHash, dappAbiMap, showTraceLocation, d
 import EVM.Dapp (DappContext (..), contextInfo, contextEnv)
 import EVM (VM, VMResult(..), cheatCode, traceForest, traceData, Error (..), result)
 import EVM (Trace, TraceData (..), Query (..), FrameContext (..))
-import EVM.SymExec
 import EVM.Types (maybeLitWord, W256 (..), num, word, Expr(..), EType(..), hexByteString, foldExpr, mapExpr)
 import EVM.Types (Addr, ByteStringS(..))
 import EVM.ABI (AbiValue (..), Event (..), AbiType (..), SolError (..))
@@ -469,5 +468,26 @@ showTree' (Node _ children) =
 --renderTree showBranch showLeaf (Node b []) = Node (showBranch b ++ showLeaf b) []
 --renderTree showBranch showLeaf (Node b cs) = Node (showBranch b) (renderTree showBranch showLeaf <$> cs)
 
+indent' :: Int -> String -> String
+indent' n = rstrip . unlines . fmap (replicate n ' ' <>) . lines
 
+rstrip :: String -> String
+rstrip = reverse . dropWhile (=='\n') . reverse
 
+formatExpr :: Expr a -> String
+formatExpr = go
+  where
+    go = \case
+      ITE c t f -> rstrip . unlines $
+        [ "(ITE (" <> formatExpr c <> ")"
+        , indent' 2 (formatExpr t)
+        , indent' 2 (formatExpr f)
+        , ")"]
+      EVM.Types.Revert buf -> "(Revert " <> formatExpr buf <> ")"
+      Return buf store -> unlines
+          [ "(Return"
+          , indent' 2 ("Data: " <> formatExpr buf)
+          , indent' 2 ("Store: " <> formatExpr store)
+          , ")"
+          ]
+      a -> show a

@@ -378,6 +378,7 @@ simplify e = if (mapExpr go e == e)
       | a == (Lit 0) = v
       | otherwise = o
     go o@(And a (And b c))
+      | a == c = (And a b)
       | a == b = (And b c)
       | otherwise = o
     go o@(Add a b)
@@ -387,16 +388,13 @@ simplify e = if (mapExpr go e == e)
     go o@(EVM.Types.LT (Lit a) (Lit b))
       | (a < b) = Lit 1
       | otherwise = Lit 0
-    go o@(IsZero (CallValue x))
-      | x == 0 = Lit 0x1
-      | otherwise = Lit 0x0
     -- we write at least 32, so if x <= 32, it's FALSE
     go o@(EVM.Types.LT (BufLength (WriteWord {})) x)
-      | x <= Lit 0x32 = Lit 0x0
+      | x <= Lit 32 = Lit 0x0
       | otherwise = o
     -- we write at least 32, so if x < 32, it's TRUE
     go o@(EVM.Types.GT (BufLength (WriteWord {})) x)
-      | x < Lit 0x32 = Lit 0x1
+      | x < Lit 32 = Lit 0x1
       | otherwise = o
     go o@(Sub a b)
       | a == b = Lit 0

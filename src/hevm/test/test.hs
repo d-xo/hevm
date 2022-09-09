@@ -360,7 +360,7 @@ tests = testGroup "hevm"
           [Cex (l, _)] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("foo()", [])) []
           assertEqual "incorrect revert msg" l (EVM.Types.Revert (ConcreteBuf $ panicMsg 0x01))
         ,
-        expectfail $ testCase "assert-fail-equal" $ do
+        expectFail $ testCase "assert-fail-equal" $ do
           Just c <- solcRuntime "AssertFailEqual"
             [i|
             contract AssertFailEqual {
@@ -390,25 +390,6 @@ tests = testGroup "hevm"
             |]
           [Cex (l, _)] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("foo(uint256)", [AbiUIntType 256])) []
           putStrLn "Found counterexample"
-        ,
-        expectfail $ testCase "assert-fail-equal" $ do
-          Just c <- solcRuntime "AssertFailEqual"
-            [i|
-            contract AssertFailEqual {
-              function fun(uint256 deposit_count) external pure {
-                assert(deposit_count == 0);
-                assert(deposit_count == 11);
-              }
-             }
-            |]
-          [Cex a, Cex b] <- withSolvers Z3 1 $ \s ->
-              checkAssert
-                s                                          -- solvers
-                defaultPanicCodes                          -- errors
-                c                                          -- the code
-                (Just ("fun(uint256)", [AbiUIntType 256])) -- signature
-                []                                         -- concreteargs
-          putStrLn "expected 2 counterexamples found"
         ,
         expectFail $ testCase "assert-fail-notequal" $ do
           Just c <- solcRuntime "AssertFailNotEqual"

@@ -377,7 +377,7 @@ tests = testGroup "hevm"
             [i|
             contract AssertFailNotEqual {
               function fun(uint256 deposit_count) external pure {
-                assert(deposit_count != 0);
+                assert(deposit_count != 22);
                 assert(deposit_count != 11);
               }
              }
@@ -390,7 +390,7 @@ tests = testGroup "hevm"
             [i|
             contract AssertFailTwoParams {
               function fun(uint256 deposit_count1, uint256 deposit_count2) external pure {
-                assert(deposit_count1 != 0);
+                assert(deposit_count1 != 22);
                 assert(deposit_count2 != 11);
               }
              }

@@ -364,7 +364,7 @@ tests = testGroup "hevm"
             [i|
             contract AssertFailEqual {
               function fun(uint256 deposit_count) external pure {
-                assert(deposit_count == 0);
+                assert(deposit_count == 22);
                 assert(deposit_count == 11);
               }
              }

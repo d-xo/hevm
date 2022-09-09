@@ -541,8 +541,8 @@ evalProp = \case
 verify :: SolverGroup -> VM -> Maybe Integer -> Maybe Integer -> Maybe (Fetch.BlockNumber, Text) -> Maybe Postcondition -> IO [VerifyResult]
 verify solvers preState maxIter askSmtIters rpcinfo maybepost = do
   putStrLn "Exploring contract"
-  -- expr <- simplify <$> evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) preState
-  expr <- evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) preState
+  expr <- simplify <$> evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) preState
+  -- expr <- evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) preState
   putStrLn $ "Explored contract (" <> show (Expr.numBranches expr) <> " branches)"
   putStrLn $ "----IR BEGIN----\n" <> formatExpr expr <> "\n----IR END----\n"
   let leaves = flattenExpr expr

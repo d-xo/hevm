@@ -360,7 +360,7 @@ tests = testGroup "hevm"
           [Cex (l, _)] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("foo()", [])) []
           assertEqual "incorrect revert msg" l (EVM.Types.Revert (ConcreteBuf $ panicMsg 0x01))
         ,
-        expectFail $ testCase "assert-fail-equal" $ do
+        testCase "assert-fail-equal" $ do
           Just c <- solcRuntime "AssertFailEqual"
             [i|
             contract AssertFailEqual {

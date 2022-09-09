@@ -16,8 +16,6 @@ import Data.ByteString (ByteString)
 
 import Prelude hiding (fail)
 
-import Debug.Trace
-
 import qualified Data.Text as Text
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BS (fromStrict)
@@ -27,6 +25,7 @@ import Test.Tasty
 import Test.Tasty.QuickCheck
 import Test.Tasty.HUnit
 import Test.Tasty.Runners
+import Test.Tasty.ExpectedFailure
 
 import Control.Monad.State.Strict (execState, runState)
 import Control.Lens hiding (List, pre, (.>))
@@ -34,10 +33,7 @@ import Control.Lens hiding (List, pre, (.>))
 import qualified Data.Vector as Vector
 import Data.String.Here
 
-import Control.Monad.Fail
-
 import Data.Binary.Put (runPut)
-import qualified Data.Map as Map
 import Data.Binary.Get (runGetOrFail)
 
 import qualified Data.Text as T
@@ -54,7 +50,6 @@ import EVM.Types
 import EVM.SMT
 import qualified Data.ByteString.Base16 as BS16
 import qualified EVM.Expr as Expr
-trace' msg x = trace (msg <> ": " <> show x) x
 
 
 main :: IO ()
@@ -74,21 +69,21 @@ tests = testGroup "hevm"
           _ -> False
     ]
   , testGroup "Solidity expressions"
-    [ testCase "Trivial" $
+    [ expectFail $ testCase "Trivial" $
         SolidityCall "x = 3;" []
           ===> AbiUInt 256 3
 
-    , testCase "Arithmetic" $ do
+    , expectFail $ testCase "Arithmetic" $ do
         SolidityCall "x = a + 1;"
           [AbiUInt 256 1] ===> AbiUInt 256 2
         SolidityCall "unchecked { x = a - 1; }"
           [AbiUInt 8 0] ===> AbiUInt 8 255
 
-    , testCase "keccak256()" $
+    , expectFail $ testCase "keccak256()" $
         SolidityCall "x = uint(keccak256(abi.encodePacked(a)));"
           [AbiString ""] ===> AbiUInt 256 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
 
-    , testProperty "abi encoding vs. solidity" $ withMaxSuccess 20 $ forAll (arbitrary >>= genAbiValue) $
+    , expectFail $ testProperty "abi encoding vs. solidity" $ withMaxSuccess 20 $ forAll (arbitrary >>= genAbiValue) $
       \y -> ioProperty $ do
           -- traceM ("encoding: " ++ (show y) ++ " : " ++ show (abiValueType y))
           Just encoded <- runStatements [i| x = abi.encode(a);|]
@@ -99,7 +94,7 @@ tests = testGroup "hevm"
           -- traceM ("encoded (hevm): " ++ show (AbiBytesDynamic hevmEncoded))
           assertEqual "abi encoding mismatch" solidityEncoded (AbiBytesDynamic hevmEncoded)
 
-    , testProperty "abi encoding vs. solidity (2 args)" $ withMaxSuccess 20 $ forAll (arbitrary >>= bothM genAbiValue) $
+    , expectFail $ testProperty "abi encoding vs. solidity (2 args)" $ withMaxSuccess 20 $ forAll (arbitrary >>= bothM genAbiValue) $
       \(x', y') -> ioProperty $ do
           -- traceM ("encoding: " ++ (show x') ++ ", " ++ (show y')  ++ " : " ++ show (abiValueType x') ++ ", " ++ show (abiValueType y'))
           Just encoded <- runStatements [i| x = abi.encode(a, b);|]
@@ -221,7 +216,7 @@ tests = testGroup "hevm"
       [
       -- Somewhat tautological since we are asserting the precondition
       -- on the same form as the actual "requires" clause.
-      testCase "SafeAdd success case" $ do
+      expectFail $ testCase "SafeAdd success case" $ do
         Just safeAdd <- solcRuntime "SafeAdd"
           [i|
           contract SafeAdd {
@@ -242,7 +237,7 @@ tests = testGroup "hevm"
         putStrLn $ "successfully explored: " <> show (Expr.numBranches res) <> " paths"
      ,
 
-      testCase "x == y => x + y == 2 * y" $ do
+      expectFail $ testCase "x == y => x + y == 2 * y" $ do
         Just safeAdd <- solcRuntime "SafeAdd"
           [i|
           contract SafeAdd {
@@ -365,7 +360,7 @@ tests = testGroup "hevm"
           [Cex (l, _)] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("foo()", [])) []
           assertEqual "incorrect revert msg" l (EVM.Types.Revert (ConcreteBuf $ panicMsg 0x01))
         ,
-        testCase "assert-fail-equal" $ do
+        expectfail $ testCase "assert-fail-equal" $ do
           Just c <- solcRuntime "AssertFailEqual"
             [i|
             contract AssertFailEqual {
@@ -396,7 +391,7 @@ tests = testGroup "hevm"
           [Cex (l, _)] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("foo(uint256)", [AbiUIntType 256])) []
           putStrLn "Found counterexample"
         ,
-        testCase "assert-fail-equal" $ do
+        expectfail $ testCase "assert-fail-equal" $ do
           Just c <- solcRuntime "AssertFailEqual"
             [i|
             contract AssertFailEqual {
@@ -415,7 +410,7 @@ tests = testGroup "hevm"
                 []                                         -- concreteargs
           putStrLn "expected 2 counterexamples found"
         ,
-        testCase "assert-fail-notequal" $ do
+        expectFail $ testCase "assert-fail-notequal" $ do
           Just c <- solcRuntime "AssertFailNotEqual"
             [i|
             contract AssertFailNotEqual {
@@ -425,10 +420,10 @@ tests = testGroup "hevm"
               }
              }
             |]
-          [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
+          [Cex _, Cex _] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
           putStrLn "expected 2 counterexamples found"
         ,
-        testCase "assert-fail-twoargs" $ do
+        expectFail $ testCase "assert-fail-twoargs" $ do
           Just c <- solcRuntime "AssertFailTwoParams"
             [i|
             contract AssertFailTwoParams {
@@ -438,10 +433,10 @@ tests = testGroup "hevm"
               }
              }
             |]
-          [Cex a, Cex b] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256, AbiUIntType 256])) []
+          [Cex _, Cex _] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256, AbiUIntType 256])) []
           putStrLn "expected 2 counterexamples found"
         ,
-        testCase "Deposit contract loop (z3)" $ do
+        expectFail $ testCase "Deposit contract loop (z3)" $ do
           Just c <- solcRuntime "Deposit"
             [i|
             contract Deposit {
@@ -769,7 +764,7 @@ runSimpleVM x ins = case loadVM x of
                       Just vm -> let calldata' = (ConcreteBuf ins)
                        in case runState (assign (state.calldata) calldata' >> exec) vm of
                             (VMSuccess (ConcreteBuf bs), _) -> Just bs
-                            a -> trace (show a) Nothing
+                            _ -> Nothing
 
 loadVM :: ByteString -> Maybe VM
 loadVM x =

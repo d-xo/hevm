@@ -36,6 +36,7 @@ import qualified Data.Text as T
 import Data.List (find)
 import Data.Maybe (isJust, fromJust)
 import Debug.Trace
+import EVM.Format (formatExpr)
 
 data ProofResult a b c = Qed a | Cex b | Timeout c
   deriving (Show)
@@ -566,7 +567,7 @@ verify solvers preState maxIter askSmtIters rpcinfo maybepost = do
       print canViolate
       putStrLn "--- canViolate END"
       putStrLn $ "Checking for reachability of " <> show (length withQueries) <> " potential property violations"
-      -- putStrLn $ T.unpack . formatSMT2 . fst $ withQueries !! 0
+      --putStrLn $ T.unpack . formatSMT2 . fst $ withQueries !! 0
       results <- flip mapConcurrently withQueries $ \(query, leaf) -> do
         putStrLn "--- query BEGIN ---"
         print query

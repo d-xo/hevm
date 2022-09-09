@@ -14,8 +14,6 @@ homepage:
   https://github.com/dapphub/dapptools
 license:
   AGPL-3.0-only
-license-file:
-  COPYING
 author:
   Mikael Brockman, Martin Lundfall, dxo
 maintainer:
@@ -71,9 +69,7 @@ library
     -Wall -Wno-deprecations -Wno-unticked-promoted-constructors
   extra-libraries:
     secp256k1, ff
-  if os(darwin)
-     extra-libraries: c++
-  else
+  if os(linux)
      extra-libraries: stdc++
   c-sources:
     ethjet/tinykeccak.c, ethjet/ethjet.c
@@ -163,7 +159,10 @@ executable hevm
   other-modules:
     Paths_hevm
   if os(darwin)
+    extra-libraries: c++
     ld-options: -Wl,-keep_dwarf_unwind
+  else
+    extra-libraries: stdc++
   build-depends:
     QuickCheck,
     aeson,
@@ -211,6 +210,10 @@ test-suite test
     test.hs
   extra-libraries:
     secp256k1
+  if os(darwin)
+     extra-libraries: c++
+  else
+     extra-libraries: stdc++
   build-depends:
     HUnit >= 1.6,
     QuickCheck,
@@ -219,7 +222,6 @@ test-suite test
     binary,
     containers,
     bytestring,
-    free,
     here,
     hevm,
     lens,
@@ -227,6 +229,6 @@ test-suite test
     tasty >= 1.0,
     tasty-hunit >= 0.10,
     tasty-quickcheck >= 0.9,
+    tasty-expected-failure >= 0.12,
     text,
-    vector,
-    sbv
+    vector

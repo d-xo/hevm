@@ -32,6 +32,10 @@
               inherit (pkgs) secp256k1;
             }
           ).overrideAttrs (attrs: {
+            preInstall = ''
+              pwd
+              ls
+            '';
             postInstall = ''
                 wrapProgram $out/bin/hevm --prefix PATH \
                   : "${pkgs.lib.makeBinPath (with pkgs; [bash coreutils git solc])}"
@@ -51,9 +55,12 @@
                 "--extra-lib-dirs=${pkgs.gmp.override { withStatic = true; }}/lib"
                 "--extra-lib-dirs=${packages.libsecp256k1}/lib"
                 "--extra-lib-dirs=${packages.libff}/lib"
-                "--extra-lib-dirs=${pkgs.ncurses.override {enableStatic = true; }}/lib"
+                "--extra-lib-dirs=${pkgs.ncurses.override { enableStatic = true; }}/lib"
                 "--extra-lib-dirs=${pkgs.zlib.static}/lib"
                 "--extra-lib-dirs=${pkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+                "--extra-lib-dirs=${pkgs.libiconv}/lib"
+                "--extra-lib-dirs=${pkgs.libiconv.override { enableStatic = true; }}/lib"
            ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 "--extra-lib-dirs=${pkgs.glibc}/lib"
                 "--extra-lib-dirs=${pkgs.glibc.static}/lib"
@@ -81,7 +88,8 @@
           ];
           withHoogle = true;
         }).overrideAttrs (_: {
-          LD_LIBRARY_PATH = "${pkgs.secp256k1}/lib:${pkgs.libff}/lib";
+          LD_LIBRARY_PATH = "${pkgs.secp256k1}/lib:${packages.libff.override {enableStatic = false;}}/lib";
+          DYLD_LIBRARY_PATH = "${pkgs.secp256k1}/lib:${packages.libff.override {enableStatic = false;}}/lib";
         });
       }
     );

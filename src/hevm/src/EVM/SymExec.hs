@@ -330,7 +330,7 @@ flattenExpr = go []
   where
     go :: [Prop] -> Expr End -> [([Prop], Expr End)]
     go pcs = \case
-      ITE c t f -> go (PNeg (PEq c (Lit 0)) : pcs) t <> go (PEq c (Lit 0) : pcs) f
+      ITE c t f -> go (PNeg ((PEq c (Lit 0))) : pcs) t <> go (PEq c (Lit 0) : pcs) f
       Invalid -> [(pcs, Invalid)]
       SelfDestruct -> [(pcs, SelfDestruct)]
       Revert buf -> [(pcs, Revert buf)]

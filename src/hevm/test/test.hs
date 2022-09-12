@@ -215,7 +215,7 @@ tests = testGroup "hevm"
       [
       -- Somewhat tautological since we are asserting the precondition
       -- on the same form as the actual "requires" clause.
-      expectFail $ testCase "SafeAdd success case" $ do
+      testCase "SafeAdd-success" $ do
         Just safeAdd <- solcRuntime "SafeAdd"
           [i|
           contract SafeAdd {
@@ -224,19 +224,19 @@ tests = testGroup "hevm"
             }
           }
           |]
-        let pre preVM = let [x, y] = getStaticAbiArgs 2 preVM
-                        in (x .<= Expr.add x y)
-                           .&& view (state . callvalue) preVM .== Lit 0
-            post prestate leaf =
-              let [x, y] = getStaticAbiArgs 2 prestate
-              in case leaf of
-                   Return b _ -> (ReadWord (Lit 0) b) .== (Add x y)
-                   _ -> PBool True
-        [Qed res] <- withSolvers Z3 1 $ \s -> verifyContract s safeAdd (Just ("add(uint256,uint256)", [AbiUIntType 256, AbiUIntType 256])) [] SymbolicS (Just pre) (Just post)
+       -- let pre preVM = let [x, y] = getStaticAbiArgs 2 preVM
+       --                 in (x .<= Expr.add x y)
+       --                    .&& view (state . callvalue) preVM .== Lit 0
+       --     post prestate leaf =
+       --       let [x, y] = getStaticAbiArgs 2 prestate
+       --       in case leaf of
+       --            Return b _ -> (ReadWord (Lit 0) b) .== (Add x y)
+       --            _ -> PBool True
+       [Qed res] <- withSolvers Z3 1 $ \s -> verifyContract s safeAdd (Just ("add(uint256,uint256)", [AbiUIntType 256, AbiUIntType 256])) [] SymbolicS (Just pre) (Just post)
         putStrLn $ "successfully explored: " <> show (Expr.numBranches res) <> " paths"
      ,
 
-      expectFail $ testCase "x == y => x + y == 2 * y" $ do
+      testCase "x == y => x + y == 2 * y" $ do
         Just safeAdd <- solcRuntime "SafeAdd"
           [i|
           contract SafeAdd {
@@ -372,7 +372,7 @@ tests = testGroup "hevm"
           [Cex _, Cex _] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256)", [AbiUIntType 256])) []
           putStrLn "expected 2 counterexamples found"
         ,
-        expectFail $ testCase "assert-fail-notequal" $ do
+        testCase "assert-fail-notequal" $ do
           Just c <- solcRuntime "AssertFailNotEqual"
             [i|
             contract AssertFailNotEqual {

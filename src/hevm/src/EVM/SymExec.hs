@@ -361,9 +361,9 @@ simplify e = if (mapExpr go e == e)
       | a == b = (Lit 1)
       | otherwise = o
     -- redundant ITE
-    go o@(ITE c a b)
-      | c == Lit 1 = a
-      | c == Lit 0 = b
+    go o@(ITE (Lit c) a b)
+      | c > 0 = a
+      | c == 0 = b
 --      | a == b = trace ("a: " <> show a <> "\n\nb: " <> show b) a
       | otherwise = o
     -- redundant add / sub
@@ -570,7 +570,7 @@ verify solvers preState maxIter askSmtIters rpcinfo maybepost = do
         putStrLn "--- query BEGIN ---"
         print query
         putStrLn "--- query END ---"
-        res <- checkSat' solvers (query, ["txdata", "storage"])
+        res <- checkSat' solvers (query, ["txdata", "arg1"])
         putStrLn "--- res BEGIN ---"
         print res
         putStrLn "--- res END ---"

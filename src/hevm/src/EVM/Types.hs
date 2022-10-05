@@ -1,13 +1,9 @@
 {-# Language CPP #-}
 {-# Language TemplateHaskell #-}
 {-# Language TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module EVM.Types where
 
@@ -1088,8 +1084,7 @@ packNibbles _ = error "can't pack odd number of nibbles"
 keccakBytes :: ByteString -> ByteString
 keccakBytes =
   (hash :: ByteString -> Digest Keccak_256)
-    >>> BA.unpack
-    >>> BS.pack
+    >>> BA.convert
 
 word32 :: [Word8] -> Word32
 word32 xs = sum [ fromIntegral x `shiftL` (8*n)

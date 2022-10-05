@@ -1,9 +1,6 @@
 {-# Language DataKinds #-}
 {-# Language GADTs #-}
-{-# Language PolyKinds #-}
-{-# Language ScopedTypeVariables #-}
 {-# Language TypeApplications #-}
-{-# Language LambdaCase #-}
 {-# Language QuasiQuotes #-}
 
 {- |
@@ -25,10 +22,12 @@ import Data.Char (isSpace)
 import Data.Containers.ListUtils (nubOrd)
 import Control.Monad.State.Strict
 
+import qualified Data.ByteString as BS
 import qualified Data.List as List
+import Data.List.NonEmpty (NonEmpty((:|)))
+import qualified Data.List.NonEmpty as NE
 import Data.String.Here
 import Data.Map (Map)
-import Data.Maybe
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -84,20 +83,6 @@ assertWords es = flip evalState initState $ do
        <> intermediates
        <> SMT2 [""]
        <> (SMT2 $ fmap (\e -> "(assert (= " <> e `sp` one <> "))") encs)
-
-assertProp :: Prop -> SMT2
-assertProp p = flip evalState initState $ do
-  enc <- propToSMT p
-  intermediates <- declareIntermediates
-  pure $ prelude
-       <> (declareBufs . referencedBufs' $ p)
-       <> SMT2 [""]
-       <> (declareVars . referencedVars' $ p)
-       <> SMT2 [""]
-       <> (declareFrameContext . referencedFrameContext' $ p)
-       <> intermediates
-       <> SMT2 [""]
-       <> SMT2 ["(assert " <> enc <> ")"]
 
 assertProps :: [Prop] -> SMT2
 assertProps ps = flip evalState initState $ do
@@ -207,41 +192,39 @@ prelude = SMT2 . fmap (T.drop 2) . T.lines $ [i|
 
   (define-fun writeWord ((idx Word) (val Word) (buf Buf)) Buf
       (store (store (store (store (store (store (store (store (store (store (store (store (store (store (store (store (store
-      (store (store (store (store (store (store (store (store (store (store (store (store (store (store (store (store (store buf
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001f) (indexWord31 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001e) (indexWord30 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001d) (indexWord29 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001c) (indexWord28 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001b) (indexWord27 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001a) (indexWord26 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000019) (indexWord25 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000018) (indexWord24 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000017) (indexWord23 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000016) (indexWord22 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000015) (indexWord21 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000014) (indexWord20 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000013) (indexWord19 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000012) (indexWord18 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000011) (indexWord17 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000010) (indexWord16 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000f) (indexWord15 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000e) (indexWord14 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000d) (indexWord13 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000c) (indexWord12 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000b) (indexWord11 val))
-      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000a) (indexWord10 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000009) (indexWord9 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000008) (indexWord8 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000007) (indexWord7 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000006) (indexWord6 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000005) (indexWord5 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000005) (indexWord5 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000004) (indexWord4 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000003) (indexWord3 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000002) (indexWord2 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000001) (indexWord1 val))
-      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000001) (indexWord1 val))
-      idx (indexWord0 val))
+      (store (store (store (store (store (store (store (store (store (store (store (store (store (store (store buf
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001f) (indexWord0 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001e) (indexWord1 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001d) (indexWord2 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001c) (indexWord3 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001b) (indexWord4 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000001a) (indexWord5 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000019) (indexWord6 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000018) (indexWord7 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000017) (indexWord8 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000016) (indexWord9 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000015) (indexWord10 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000014) (indexWord11 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000013) (indexWord12 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000012) (indexWord13 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000011) (indexWord14 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000010) (indexWord15 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000f) (indexWord16 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000e) (indexWord17 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000d) (indexWord18 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000c) (indexWord19 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000b) (indexWord20 val))
+      (bvadd idx #x000000000000000000000000000000000000000000000000000000000000000a) (indexWord21 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000009) (indexWord22 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000008) (indexWord23 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000007) (indexWord24 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000006) (indexWord25 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000005) (indexWord26 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000004) (indexWord27 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000003) (indexWord28 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000002) (indexWord29 val))
+      (bvadd idx #x0000000000000000000000000000000000000000000000000000000000000001) (indexWord30 val))
+      idx (indexWord31 val))
   )
 
   ; block context
@@ -259,11 +242,9 @@ prelude = SMT2 . fmap (T.drop 2) . T.lines $ [i|
   (declare-const abstractStore Storage)
   (define-const emptyStore Storage ((as const Storage) ((as const (Array (_ BitVec 256) (_ BitVec 256))) #x0000000000000000000000000000000000000000000000000000000000000000)))
 
-  (define-fun sstore ((addr Word) (key Word) (val Word) (storage Storage)) Storage (
-      store storage addr (store (select storage addr) key val)))
+  (define-fun sstore ((addr Word) (key Word) (val Word) (storage Storage)) Storage (store storage addr (store (select storage addr) key val)))
 
-  (define-fun sload ((addr Word) (key Word) (storage Storage)) Word (
-      select (select storage addr) key))
+  (define-fun sload ((addr Word) (key Word) (storage Storage)) Word (select (select storage addr) key))
   |]
 
 declareBufs :: [Text] -> SMT2
@@ -369,8 +350,8 @@ exprToSMT = \case
     eight nine ten eleven twelve thirteen fourteen fifteen
     sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree
     twentyfour twentyfive twentysix twentyseven twentyeight twentynine thirty thirtyone
-    -> concatBytes
-        [ z, o, two, three, four, five, six, seven
+    -> concatBytes $ z :|
+        [ o, two, three, four, five, six, seven
         , eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen
         , sixteen, seventeen, eighteen, nineteen, twenty, twentyone, twentytwo, twentythree
         , twentyfour, twentyfive, twentysix, twentyseven, twentyeight, twentynine, thirty, thirtyone]
@@ -448,9 +429,7 @@ exprToSMT = \case
   ReadByte idx src -> op2 "select" src idx
 
   EmptyBuf -> pure "emptyBuf"
-  e@(ConcreteBuf _) -> case toList e of
-    Just bs -> writeBytes (Lit 0) bs EmptyBuf
-    Nothing -> error "Internal Error: could not convert concrete bytes to list"
+  ConcreteBuf bs -> writeBytes (LitByte <$> BS.unpack bs) EmptyBuf
   AbstractBuf s -> pure s
   ReadWord idx prev -> op2 "readWord" idx prev
   BufLength b -> op1 "bufLength" b
@@ -495,7 +474,7 @@ exprToSMT = \case
             newBs = Map.insert e (count', "(writeWord " <> encIdx `sp` encVal `sp` prevName <> ")") bs'
           put $ s{bufs=(count' + 1, newBs)}
           pure . T.pack $ "buf" <> show count'
-  e@(CopySlice dstIdx srcIdx size src dst) -> do
+  e@(CopySlice srcIdx dstIdx size src dst) -> do
     traceShowM e
     s <- get
     let (_, bs) = bufs s
@@ -511,7 +490,7 @@ exprToSMT = \case
                      Just (_, n') -> pure n'
                      Nothing -> exprToSMT dst
         s'' <- get
-        enc <- copySlice dstIdx srcIdx size srcName dstName
+        enc <- copySlice srcIdx dstIdx size srcName dstName
         let (count, bs'') = bufs s''
         put $ s{bufs=(count + 1, Map.insert e (count, enc) bs'')}
         pure . T.pack $ "buf" <> show count
@@ -723,8 +702,7 @@ solverArgs = \case
     [ "-in" ]
   CVC5 ->
     [ "--lang=smt"
-    , "--interactive"
-    , "--no-interactive-prompt"
+    , "--no-interactive"
     , "--produce-models"
     ]
   Custom _ -> []
@@ -806,15 +784,13 @@ readSExpr h = go 0 0 []
 
 -- | Stores a region of src into dst
 copySlice :: Expr EWord -> Expr EWord -> Expr EWord -> Text -> Text -> State BuilderState Text
-copySlice dstOffset srcOffset size@(Lit _) src dst
-  | size == (Lit 0) = do
-    encDstOff <- exprToSMT dstOffset
-    encSrcOff <- exprToSMT srcOffset
-    pure $ "(store " <> dst `sp` encDstOff <> " (select " <> src `sp` encSrcOff <> "))"
+copySlice srcOffset dstOffset size@(Lit _) src dst
+  | size == (Lit 0) = pure src
   | otherwise = do
-    encDstOff <- exprToSMT (add dstOffset size)
-    encSrcOff <- exprToSMT (add srcOffset size)
-    child <- copySlice dstOffset srcOffset (sub size (Lit 1)) src dst
+    let size' = (sub size (Lit 1))
+    encDstOff <- exprToSMT (add dstOffset size')
+    encSrcOff <- exprToSMT (add srcOffset size')
+    child <- copySlice srcOffset dstOffset size' src dst
     pure $ "(store " <> child `sp` encDstOff `sp` "(select " <> src `sp` encSrcOff <> "))"
 copySlice _ _ _ _ _ = error "TODO: implement copySlice with a symbolically sized region"
 
@@ -828,24 +804,20 @@ expandExp base expnt
     pure $ "(* " <> b `sp` n <> ")"
 
 -- | Concatenates a list of bytes into a larger bitvector
-concatBytes :: [Expr Byte] -> State BuilderState Text
-concatBytes [b] = exprToSMT b
-concatBytes (hd : tl) = do
-  eHd <- exprToSMT hd
-  eTl <- concatBytes tl
-  pure $ "(concat " <> eHd `sp` eTl <> ")"
-concatBytes [] = error "cannot concat an empty list of bytes" -- TODO: use nonempty here?
+concatBytes :: NonEmpty (Expr Byte) -> State BuilderState Text
+concatBytes bytes = foldM wrap "" $ NE.reverse bytes
+  where
+    wrap inner byte = do
+      byteSMT <- exprToSMT byte
+      pure $ "(concat " <> byteSMT `sp` inner <> ")"
 
 -- | Concatenates a list of bytes into a larger bitvector
-writeBytes :: Expr EWord -> [Expr Byte] -> Expr Buf -> State BuilderState Text
-writeBytes _ [] buf = exprToSMT buf
-writeBytes idx [b] buf = do
-  eBuf <- exprToSMT buf
-  eIdx <- exprToSMT idx
-  eByte <- exprToSMT b
-  pure $ "(store " <> eBuf `sp` eIdx `sp` eByte <> ")"
-writeBytes idx (hd : tl) buf = do
-  eHd <- exprToSMT hd
-  eIdx <- exprToSMT idx
-  eTl <- writeBytes (add idx (Lit 1)) tl buf
-  pure $ "(store " <> eTl `sp` eIdx `sp` eHd <> ")"
+writeBytes :: [Expr Byte] -> Expr Buf -> State BuilderState Text
+writeBytes bytes buf = do
+  bufSMT <- exprToSMT buf
+  foldM wrap bufSMT $ reverse (zip [0..] bytes)
+  where
+    wrap inner (idx, byte) = do
+      byteSMT <- exprToSMT byte
+      idxSMT <- exprToSMT $ Lit idx
+      pure $ "(store " <> inner `sp` idxSMT `sp` byteSMT <> ")"

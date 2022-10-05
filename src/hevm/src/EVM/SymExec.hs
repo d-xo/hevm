@@ -1,5 +1,4 @@
 {-# Language DataKinds #-}
-{-# Language OverloadedStrings #-}
 
 module EVM.SymExec where
 
@@ -42,6 +41,14 @@ data ProofResult a b c = Qed a | Cex b | Timeout c
   deriving (Show)
 type VerifyResult = ProofResult (Expr End) (Expr End, [Text]) (Expr End)
 type EquivalenceResult = ProofResult ([VM], [VM]) VM ()
+
+isQed :: ProofResult a b c -> Bool
+isQed (Qed _) = True
+isQed _ = False
+
+extractCex :: VerifyResult -> Maybe (Expr End, [Text])
+extractCex (Cex c) = Just c
+extractCex _ = Nothing
 
 inRange :: Int -> Expr EWord -> Prop
 inRange sz e = PAnd (PGEq e (Lit 0)) (PLEq e (Lit $ 2 ^ sz - 1))
@@ -390,11 +397,11 @@ simplify e = if (mapExpr go e == e)
       | otherwise = Lit 0
     -- we write at least 32, so if x <= 32, it's FALSE
     go o@(EVM.Types.LT (BufLength (WriteWord {})) (Lit x))
-      | x <= 32 = Lit 0x0
+      | x <= 32 = Lit 0
       | otherwise = o
     -- we write at least 32, so if x < 32, it's TRUE
     go o@(EVM.Types.GT (BufLength (WriteWord {})) (Lit x))
-      | x < 32 = Lit 0x1
+      | x < 32 = Lit 1
       | otherwise = o
     go o@(Sub a b)
       | a == b = Lit 0
@@ -513,28 +520,28 @@ evalProp = \case
               (PBool b) -> PBool (not b)
               _ -> o
   o@(PEq l r) -> if l == r
-             then PBool True
-             else o
-  o@(PLT l r) -> if l < r
-             then PBool True
-             else o
-  o@(PGT l r) -> if l > r
-             then PBool True
-             else o
-  o@(PGEq l r) -> if l >= r
-             then PBool True
-             else o
-  o@(PLEq l r) -> if l <= r
-             then PBool True
-             else o
+                 then PBool True
+                 else o
+  o@(PLT (Lit l) (Lit r)) -> if l < r
+                             then PBool True
+                             else o
+  o@(PGT (Lit l) (Lit r)) -> if l > r
+                             then PBool True
+                             else o
+  o@(PGEq (Lit l) (Lit r)) -> if l >= r
+                              then PBool True
+                              else o
+  o@(PLEq (Lit l) (Lit r)) -> if l <= r
+                              then PBool True
+                              else o
   o@(PAnd l r) -> case (evalProp l, evalProp r) of
-                (PBool True, PBool True) -> PBool True
-                (PBool _, PBool _) -> PBool False
-                _ -> o
+                    (PBool True, PBool True) -> PBool True
+                    (PBool _, PBool _) -> PBool False
+                    _ -> o
   o@(POr l r) -> case (evalProp l, evalProp r) of
-                (PBool False, PBool False) -> PBool False
-                (PBool _, PBool _) -> PBool True
-                _ -> o
+                   (PBool False, PBool False) -> PBool False
+                   (PBool _, PBool _) -> PBool True
+                   _ -> o
 
 
 -- | Symbolically execute the VM and check all endstates against the postcondition, if available.

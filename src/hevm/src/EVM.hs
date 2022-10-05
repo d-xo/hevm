@@ -709,6 +709,7 @@ exec1 = do
         0x19 -> stackOp1 (const g_verylow) Expr.not
 
         -- op: BYTE
+        -- ith byte of (u)int256 w, counting from most significant byte
         0x1a -> stackOp2 (const g_verylow) (\(i, w) -> Expr.padByte $ Expr.indexWord i w)
 
         -- op: SHL

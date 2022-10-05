@@ -337,8 +337,8 @@ data BuilderState = BuilderState
 
 initState :: BuilderState
 initState = BuilderState
-  { bufs = (0, Map.empty)   -- (first_available_slot, map). Used for caching previous writes
-  , stores = (0, Map.empty) -- (first_available_slot, map)
+  { bufs = (0, Map.empty)
+  , stores = (0, Map.empty)
   }
 
 exprToSMT :: Expr a -> State BuilderState Text
@@ -419,6 +419,8 @@ exprToSMT = \case
 
   -- TODO: make me binary...
   LitByte b -> pure $ "(_ bv" <> T.pack (show (num b :: Integer)) <> " 8)"
+
+  -- idx-th byte of (u)int256 w, counting from most significant byte
   IndexWord w idx -> case idx of
     Lit n -> if n >= 0 && n < 32
              then do
@@ -630,11 +632,11 @@ checkSat' a b = do
   snd . head <$> checkSat a [b]
 
 checkSat :: SolverGroup -> [(SMT2, [Text])] -> IO [(SMT2, CheckSatResult)]
-checkSat (SolverGroup taskQueue) scriptsmodels = do
+checkSat (SolverGroup taskQueue) scripts = do
   -- prepare tasks
-  tasks <- forM scriptsmodels $ \(script, models) -> do
+  tasks <- forM scripts $ \(s, ms) -> do
     res <- newChan
-    pure $ Task script models res
+    pure $ Task s ms res
 
   -- send tasks to solver group
   forM_ tasks (writeChan taskQueue)

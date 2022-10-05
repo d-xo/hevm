@@ -357,9 +357,10 @@ simplify e = if (mapExpr go e == e)
     go (CopySlice (Lit 0x0) (Lit 0x0) (Lit 0x0) _ dst) = dst
 
     -- simplify buffers
-    go o@(ReadWord off1 (WriteWord off2 x _))
-      | off1 == off2 = x
-      | otherwise = o
+    -- TODO enable
+---    go o@(ReadWord off1 (WriteWord off2 x _))
+---      | off1 == off2 = x
+---      | otherwise = o
     go o@(ReadWord (Lit _) _) = Expr.simplifyReads o
     go o@(ReadByte (Lit _) _) = Expr.simplifyReads o
 
@@ -368,9 +369,9 @@ simplify e = if (mapExpr go e == e)
       | a == b = (Lit 1)
       | otherwise = o
     -- redundant ITE
-    go o@(ITE (Lit c) a b)
-      | c > 0 = a
-      | c == 0 = b
+    go o@(ITE c a b)
+      | c == Lit 1 = a
+      | c == Lit 0 = b
 --      | a == b = trace ("a: " <> show a <> "\n\nb: " <> show b) a
       | otherwise = o
     -- redundant add / sub

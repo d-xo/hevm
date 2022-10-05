@@ -380,14 +380,6 @@ tests = testGroup "hevm"
         putStrLn "expected counterexample found"
  ]
 
-
-                 }
-               }
-              }
-             |]
-         [Cex _] <- withSolvers Z3 1 $ \s -> checkAssert s [0x51] c (Just ("funn(uint256)", [AbiUIntType 256])) []
-         putStrLn "expected counterexample found"
-  ]
   , testGroup "Symbolic execution"
       [
       -- Somewhat tautological since we are asserting the precondition
@@ -412,6 +404,7 @@ tests = testGroup "hevm"
         [Qed res] <- withSolvers Z3 1 $ \s -> verifyContract s safeAdd (Just ("add(uint256,uint256)", [AbiUIntType 256, AbiUIntType 256])) [] SymbolicS (Just pre) (Just post)
         putStrLn $ "successfully explored: " <> show (Expr.numBranches res) <> " paths"
      ,
+
       testCase "x == y => x + y == 2 * y" $ do
         Just safeAdd <- solcRuntime "SafeAdd"
           [i|
@@ -540,7 +533,7 @@ tests = testGroup "hevm"
             [i|
             contract AssertFailEqual {
               function fun(uint256 deposit_count) external pure {
-                assert(deposit_count == 22);
+                assert(deposit_count == 0);
                 assert(deposit_count == 11);
               }
              }
@@ -553,7 +546,7 @@ tests = testGroup "hevm"
             [i|
             contract AssertFailNotEqual {
               function fun(uint256 deposit_count) external pure {
-                assert(deposit_count != 22);
+                assert(deposit_count != 0);
                 assert(deposit_count != 11);
               }
              }
@@ -566,7 +559,7 @@ tests = testGroup "hevm"
             [i|
             contract AssertFailTwoParams {
               function fun(uint256 deposit_count1, uint256 deposit_count2) external pure {
-                assert(deposit_count1 != 22);
+                assert(deposit_count1 != 0);
                 assert(deposit_count2 != 11);
               }
              }
@@ -575,29 +568,6 @@ tests = testGroup "hevm"
           putStrLn "expected 2 counterexamples found"
         ,
         testCase "Deposit contract loop (z3)" $ do
-          Just c <- solcRuntime "Deposit"
-            [i|
-            contract Deposit {
-              function deposit(uint256 deposit_count) external pure {
-                require(deposit_count < 2**32 - 1);
-                ++deposit_count;
-                bool found = false;
-                 for (uint height = 0; height < 32; height++) {
-                   if ((deposit_count & 1) == 1) {
-                     found = true;
-                     break;
-                   }
-                  deposit_count = deposit_count >> 1;
-                 }
-                assert(found);
-              }
-             }
-            |]
-          [Qed res] <- withSolvers Z3 1 $ \s -> checkAssert s defaultPanicCodes c (Just ("deposit(uint256)", [AbiUIntType 256])) []
-          putStrLn $ formatExpr res
-          putStrLn $ "successfully explored: " <> show (Expr.numBranches res) <> " paths"
-        ,
-        testCase "Deposit contract loop (cvc4)" $ do
           Just c <- solcRuntime "Deposit"
             [i|
             contract Deposit {
@@ -857,6 +827,7 @@ tests = testGroup "hevm"
           Cex _ <- equivalenceCheck aPrgm bPrgm Nothing Nothing Nothing
           return ()
           -}
+
     ]
   ]
   where

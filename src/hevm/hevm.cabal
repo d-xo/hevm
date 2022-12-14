@@ -75,6 +75,7 @@ library
   exposed-modules:
     EVM,
     EVM.ABI,
+    EVM.Assembler,
     EVM.Concrete,
     EVM.Dapp,
     EVM.Debug,

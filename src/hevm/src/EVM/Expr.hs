@@ -793,7 +793,7 @@ indexWord :: Expr EWord -> Expr EWord -> Expr Byte
 --                    indexWord 31 reads from the LSB
 --
 indexWord i@(Lit idx) e@(And (Lit mask) w)
-  -- if the mask is all 1s then read from the undelrying word
+  -- if the mask is all 1s then read from the underlying word
   -- we need this case to avoid overflow
   | mask == fullWordMask = indexWord (Lit idx) w
   -- if the index is a read from the masked region then read from the underlying word

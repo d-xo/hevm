@@ -34,18 +34,29 @@ import Test.Tasty.HUnit
 import Test.Tasty.Runners hiding (Failure)
 import Test.Tasty.ExpectedFailure
 
-import Control.Monad.State.Strict (execState, runState)
+import Control.Monad.State.Strict (execState, runState, evalStateT)
 import Control.Lens hiding (List, pre, (.>), re)
 
 import qualified Data.Vector as Vector
 import Data.String.Here
 import qualified Data.Map.Strict as Map
+<<<<<<< HEAD
+=======
+import Data.Map (Map)
+import Data.Vector (Vector)
+>>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
 
 import Data.Binary.Put (runPut)
 import Data.Binary.Get (runGetOrFail)
 
 import EVM hiding (Query, allowFFI)
 import EVM.SymExec
+<<<<<<< HEAD
+=======
+import EVM.Assembler
+import EVM.Op
+import EVM.UnitTest (dappTest, UnitTestOptions, getParametersFromEnvironmentVariables)
+>>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
 import EVM.ABI
 import EVM.Exec
 import qualified EVM.Patricia as Patricia
@@ -54,9 +65,23 @@ import EVM.RLP
 import EVM.Solidity
 import EVM.Types
 import EVM.Traversals
+<<<<<<< HEAD
 import EVM.SMT hiding (one)
+=======
+import EVM.SMT hiding (storage, calldata)
+import EVM.Concrete (createAddress)
+import qualified EVM.FeeSchedule as FeeSchedule
+import qualified EVM.TTY as TTY
+>>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
 import qualified EVM.Expr as Expr
 import qualified Data.Text as T
+<<<<<<< HEAD
+=======
+import qualified EVM.Stepper as Stepper
+import qualified EVM.Fetch as Fetch
+import qualified Data.Text.IO as TIO
+import Language.SMT2.Syntax (SpecConstant())
+>>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
 import Data.List (isSubsequenceOf)
 import EVM.TestUtils
 
@@ -67,6 +92,9 @@ main = defaultMain tests
 -- https://github.com/UnkindPartition/tasty/tree/ee6fe7136fbcc6312da51d7f1b396e1a2d16b98a#patterns
 runSubSet :: String -> IO ()
 runSubSet p = defaultMain . applyPattern p $ tests
+
+testRpc :: Text
+testRpc = "https://eth-mainnet.alchemyapi.io/v2/vpeKFsEF6PHifHzdtcwXSDbhV3ym5Ro4"
 
 tests :: TestTree
 tests = testGroup "hevm"
@@ -88,6 +116,25 @@ tests = testGroup "hevm"
         (SLoad (Lit 0x0) (Lit 0x0) (SStore (Var "1312") (Lit 0x0) (Lit 0x0) (ConcreteStore $ Map.fromList [(0x0, Map.fromList [(0x0, 0xab)])])))
         (Expr.readStorage' (Lit 0x0) (Lit 0x0)
           (SStore (Lit 0xacab) (Lit 0xdead) (Lit 0x0) (SStore (Var "1312") (Lit 0x0) (Lit 0x0) (ConcreteStore $ Map.fromList [(0x0, Map.fromList [(0x0, 0xab)])]))))
+    ]
+  , testGroup "Remote State Tests"
+    [ testCase "check-prevrandao-post-merge-block" $ do
+        let ctrct = assemble
+                        [ OpPrevRandao
+                        , OpPush (Lit 0)
+                        , OpMstore
+                        , OpPush (Lit 0)
+                        , OpPush (Lit 31)
+                        , OpReturn
+                        ]
+        putStrLn ""
+        putStrLn ""
+        putStrLn ""
+        putStrLn ""
+        putStrLn ""
+        print ctrct
+        res <- runCode (Just (Fetch.BlockNumber 16184420, testRpc)) ctrct (ConcreteBuf "")
+        assertEqual "" res (Just (ConcreteBuf $ word256Bytes 0x2267531ab030ed32fd5f2ef51f81427332d0becbd74fe7f4cd5684ddf4b287e0))
     ]
   -- These tests fuzz the simplifier by generating a random expression,
   -- applying some simplification rules, and then using the smt encoding to
@@ -614,8 +661,13 @@ tests = testGroup "hevm"
         runDappTest testFile "prove_transfer" >>= assertEqual "test result" False
     , testCase "Loop-Tests" $ do
         let testFile = "test/contracts/pass/loops.sol"
+<<<<<<< HEAD
         runDappTestCustom testFile "prove_loop" (Just 10) False Nothing >>= assertEqual "test result" True
         runDappTestCustom testFile "prove_loop" (Just 100) False Nothing >>= assertEqual "test result" False
+=======
+        runDappTestCustom testFile "prove_loop" Nothing (Just 10) False >>= assertEqual "test result" True
+        runDappTestCustom testFile "prove_loop" Nothing (Just 100) False >>= assertEqual "test result" False
+>>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
     , testCase "Invariant-Tests-Pass" $ do
         let testFile = "test/contracts/pass/invariants.sol"
         runDappTest testFile ".*" >>= assertEqual "test result" True
@@ -628,7 +680,11 @@ tests = testGroup "hevm"
         runDappTest testFile ".*" >>= assertEqual "test result" True
     , testCase "Cheat-Codes-Fail" $ do
         let testFile = "test/contracts/fail/cheatCodes.sol"
+<<<<<<< HEAD
         runDappTestCustom testFile "testBadFFI" Nothing False Nothing >>= assertEqual "test result" False
+=======
+        runDappTestCustom testFile "testBadFFI" Nothing Nothing False >>= assertEqual "test result" False
+>>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
     ]
   , testGroup "Symbolic execution"
       [
@@ -2110,7 +2166,45 @@ checkEquiv l r = withSolvers Z3 1 (Just 100) $ \solvers -> do
          Sat _ -> False
          Error _ -> False
 
+-- | Takes a runtime code and calls it with the provided calldata
+runCode :: Fetch.RpcInfo -> Vector (Expr Byte) -> Expr Buf -> IO (Maybe (Expr Buf))
+runCode rpcinfo code' calldata' = withSolvers Z3 0 Nothing $ \solvers -> do
+  res <- evalStateT (Stepper.interpret (Fetch.oracle solvers rpcinfo) Stepper.execFully) (vmForRuntimeCode code' calldata')
+  pure $ case res of
+    Left _ -> Nothing
+    Right b -> Just b
 
+vmForRuntimeCode :: Vector (Expr Byte) -> Expr Buf -> VM
+vmForRuntimeCode runtimecode calldata' =
+  (makeVm $ VMOpts
+    { vmoptContract = initialContract (RuntimeCode runtimecode)
+    , vmoptCalldata = mempty
+    , vmoptValue = (Lit 0)
+    , vmoptStorageBase = Concrete
+    , vmoptAddress = createAddress ethrunAddress 1
+    , vmoptCaller = Expr.litAddr ethrunAddress
+    , vmoptOrigin = ethrunAddress
+    , vmoptCoinbase = 0
+    , vmoptNumber = 0
+    , vmoptTimestamp = (Lit 0)
+    , vmoptBlockGaslimit = 0
+    , vmoptGasprice = 0
+    , vmoptPrevRandao = 42069
+    , vmoptGas = 0xffffffffffffffff
+    , vmoptGaslimit = 0xffffffffffffffff
+    , vmoptBaseFee = 0
+    , vmoptPriorityFee = 0
+    , vmoptMaxCodeSize = 0xffffffff
+    , vmoptSchedule = FeeSchedule.berlin
+    , vmoptChainId = 1
+    , vmoptCreate = False
+    , vmoptTxAccessList = mempty
+    , vmoptAllowFFI = False
+    }) & set (env . contracts . at ethrunAddress)
+             (Just (initialContract (RuntimeCode mempty)))
+       & set (state . calldata) calldata'
+
+-- | Takes a creation code and some calldata, runs the creation code, and calls the resulting contract with the provided calldata
 runSimpleVM :: ByteString -> ByteString -> Maybe ByteString
 runSimpleVM x ins = case loadVM x of
                       Nothing -> Nothing
@@ -2119,6 +2213,7 @@ runSimpleVM x ins = case loadVM x of
                             (VMSuccess (ConcreteBuf bs), _) -> Just bs
                             _ -> Nothing
 
+-- | Takes a creation code and returns a vm with the result of executing the creation code
 loadVM :: ByteString -> Maybe VM
 loadVM x =
     case runState exec (vmForEthrunCreation x) of
@@ -2478,3 +2573,119 @@ bothM f (a, a') = do
 
 applyPattern :: String -> TestTree  -> TestTree
 applyPattern p = localOption (TestPattern (parseExpr p))
+
+runDappTestCustom :: FilePath -> Text -> Fetch.RpcInfo -> Maybe Integer -> Bool -> IO Bool
+runDappTestCustom testFile match rpcinfo maxIter ffiAllowed = do
+  root <- Paths.getDataDir
+  (json, _) <- compileWithDSTest testFile
+  --TIO.writeFile "output.json" json
+  withCurrentDirectory root $ do
+    withSystemTempFile "output.json" $ \file handle -> do
+      hClose handle
+      TIO.writeFile file json
+      withSolvers Z3 1 Nothing $ \solvers -> do
+        opts <- testOpts solvers rpcinfo root json match maxIter ffiAllowed
+        dappTest opts file Nothing
+
+runDappTest :: FilePath -> Text -> IO Bool
+runDappTest testFile match = runDappTestCustom testFile match Nothing Nothing True
+
+debugDappTest :: FilePath -> IO ()
+debugDappTest testFile = do
+  root <- Paths.getDataDir
+  (json, _) <- compileWithDSTest testFile
+  --TIO.writeFile "output.json" json
+  withCurrentDirectory root $ do
+    withSystemTempFile "output.json" $ \file handle -> do
+      hClose handle
+      TIO.writeFile file json
+      withSolvers Z3 1 Nothing $ \solvers -> do
+        opts <- testOpts solvers Nothing root json ".*" Nothing True
+        TTY.main opts root file
+
+testOpts :: SolverGroup -> Fetch.RpcInfo -> FilePath -> Text -> Text -> Maybe Integer -> Bool -> IO UnitTestOptions
+testOpts solvers rpcinfo root solcJson match maxIter allowFFI = do
+  srcInfo <- case readJSON solcJson of
+               Nothing -> error "Could not read solc json"
+               Just (contractMap, asts, sources) -> do
+                 sourceCache <- makeSourceCache sources asts
+                 pure $ dappInfo root contractMap sourceCache
+
+  params <- getParametersFromEnvironmentVariables Nothing
+
+  pure EVM.UnitTest.UnitTestOptions
+    { EVM.UnitTest.solvers = solvers
+    , EVM.UnitTest.rpcInfo = rpcinfo
+    , EVM.UnitTest.maxIter = maxIter
+    , EVM.UnitTest.askSmtIters = Nothing
+    , EVM.UnitTest.smtdebug = False
+    , EVM.UnitTest.smtTimeout = Nothing
+    , EVM.UnitTest.solver = Nothing
+    , EVM.UnitTest.covMatch = Nothing
+    , EVM.UnitTest.verbose = Just 1
+    , EVM.UnitTest.match = match
+    , EVM.UnitTest.maxDepth = Nothing
+    , EVM.UnitTest.fuzzRuns = 100
+    , EVM.UnitTest.replay = Nothing
+    , EVM.UnitTest.vmModifier = id
+    , EVM.UnitTest.testParams = params
+    , EVM.UnitTest.dapp = srcInfo
+    , EVM.UnitTest.ffiAllowed = allowFFI
+    }
+
+compileWithDSTest :: FilePath -> IO (Text, Text)
+compileWithDSTest src =
+  withSystemTempFile "input.json" $ \file handle -> do
+    hClose handle
+    dsTest <- readFile =<< Paths.getDataFileName "test/contracts/lib/test.sol"
+    erc20 <- readFile =<< Paths.getDataFileName "test/contracts/lib/erc20.sol"
+    testFilePath <- Paths.getDataFileName src
+    testFile <- readFile testFilePath
+    TIO.writeFile file
+      [i|
+      {
+        "language": "Solidity",
+        "sources": {
+          "ds-test/test.sol": {
+            "content": ${dsTest}
+          },
+          "lib/erc20.sol": {
+            "content": ${erc20}
+          },
+          "test.sol": {
+            "content": ${testFile}
+          }
+        },
+        "settings": {
+          "metadata": {
+            "useLiteralContent": true
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "metadata",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "abi",
+                "storageLayout",
+                "evm.bytecode.sourceMap",
+                "evm.bytecode.linkReferences",
+                "evm.bytecode.generatedSources",
+                "evm.deployedBytecode.sourceMap",
+                "evm.deployedBytecode.linkReferences",
+                "evm.deployedBytecode.generatedSources"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      }
+      |]
+    x <- T.pack <$>
+      readProcess
+        "solc"
+        ["--allow-paths", file, "--standard-json", file]
+        ""
+    return (x, T.pack testFilePath)

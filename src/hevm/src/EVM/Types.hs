@@ -122,6 +122,7 @@ data Error
   | StackLimitExceeded
   | InvalidMemoryAccess
   | BadJumpDestination
+  | StackUnderrun
   | SelfDestruct
   | TmpErr String
   deriving (Show, Eq, Ord)

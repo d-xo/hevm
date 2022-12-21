@@ -2251,7 +2251,7 @@ vmError :: Error -> EVM ()
 vmError e = finishFrame (FrameErrored e)
 
 underrun :: EVM ()
-underrun = vmError StackUnderrun
+underrun = vmError EVM.StackUnderrun
 
 -- | A stack frame can be popped in three ways.
 data FrameResult

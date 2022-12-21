@@ -32,6 +32,10 @@ import qualified EVM.Fetch as Fetch
 import qualified EVM.FeeSchedule as FeeSchedule
 import qualified Data.Vector as V
 
+import EVM.SymExec
+import EVM.SMT
+import qualified Data.ByteString
+
 checkEquiv :: (Typeable a) => Expr a -> Expr a -> IO ()
 checkEquiv a b = withSolvers Z3 1 Nothing $ \s -> do
   let smt = assertProps [a ./= b]
@@ -403,6 +407,21 @@ initVm bs = vm
 -- | Builds the Expr for the given evm bytecode object
 buildExpr :: SolverGroup -> ByteString -> IO (Expr End)
 buildExpr solvers bs = evalStateT (interpret (Fetch.oracle solvers Nothing) Nothing Nothing runExpr) (initVm bs)
+
+myfuzz :: IO ()
+myfuzz = do
+  let testDir = "/home/matesoos/development/fuzzyvm/codes/"
+  dircontents <- System.Directory.listDirectory testDir
+  putStrLn (show dircontents)
+  let
+    runThrough :: FilePath -> IO ()
+    runThrough f = do
+      let filename = testDir ++ f
+      putStrLn $ "Running on file " <> filename
+      c <- Data.ByteString.readFile filename
+      a <- withSolvers Z3 1 Nothing $ \s -> checkAssert s defaultPanicCodes c Nothing [] debugVeriOpts
+      putStrLn (show a)
+  forM_ dircontents runThrough
 
 dai :: IO ByteString
 dai = do

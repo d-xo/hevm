@@ -6,7 +6,7 @@
 module Main where
 
 import Data.Text (Text)
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, pack)
 import Data.Bits
 import System.Directory
 import GHC.Natural
@@ -15,6 +15,8 @@ import Text.RE.TDFA.String
 import Text.RE.Replace
 import Data.Time
 import System.Environment
+import qualified Paths_hevm as Paths
+import qualified Data.Word
 
 import Prelude hiding (fail, LT, GT)
 
@@ -40,23 +42,18 @@ import Control.Lens hiding (List, pre, (.>), re)
 import qualified Data.Vector as Vector
 import Data.String.Here
 import qualified Data.Map.Strict as Map
-<<<<<<< HEAD
-=======
 import Data.Map (Map)
 import Data.Vector (Vector)
->>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
 
 import Data.Binary.Put (runPut)
 import Data.Binary.Get (runGetOrFail)
 
 import EVM hiding (Query, allowFFI)
 import EVM.SymExec
-<<<<<<< HEAD
-=======
 import EVM.Assembler
 import EVM.Op
-import EVM.UnitTest (dappTest, UnitTestOptions, getParametersFromEnvironmentVariables)
->>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
+import EVM.UnitTest (dappTest, getParametersFromEnvironmentVariables, UnitTestOptions)
+-- import EVM.UnitTest.UnitTestOptions
 import EVM.ABI
 import EVM.Exec
 import qualified EVM.Patricia as Patricia
@@ -65,25 +62,18 @@ import EVM.RLP
 import EVM.Solidity
 import EVM.Types
 import EVM.Traversals
-<<<<<<< HEAD
 import EVM.SMT hiding (one)
-=======
 import EVM.SMT hiding (storage, calldata)
 import EVM.Concrete (createAddress)
 import qualified EVM.FeeSchedule as FeeSchedule
 import qualified EVM.TTY as TTY
->>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
 import qualified EVM.Expr as Expr
 import qualified Data.Text as T
-<<<<<<< HEAD
-=======
 import qualified EVM.Stepper as Stepper
 import qualified EVM.Fetch as Fetch
 import qualified Data.Text.IO as TIO
 import Language.SMT2.Syntax (SpecConstant())
->>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
 import Data.List (isSubsequenceOf)
-import EVM.TestUtils
 
 main :: IO ()
 main = defaultMain tests
@@ -140,6 +130,18 @@ tests = testGroup "hevm"
   -- applying some simplification rules, and then using the smt encoding to
   -- check that the simplified version is semantically equivalent to the
   -- unsimplified one
+  , testGroup "contractQuickCheck"
+    [ testProperty "randomContract-with-symbolic-call" $ \(expr :: OpContract) -> ioProperty $ do
+        let lits = assemble . getOpData $ expr
+            w8s = toW8fromLitB <$> lits
+            toW8fromLitB :: Expr 'Byte -> Data.Word.Word8
+            toW8fromLitB (LitByte a) = a
+            toW8fromLitB _ = error "nope"
+
+        res <- withSolvers Z3 1 Nothing $ \s -> checkAssert s defaultPanicCodes (BS.pack $ Vector.toList w8s) Nothing [] defaultVeriOpts
+        putStrLn $ "Contract: " <> (show expr)
+        putStrLn $ "result: " <> (show res)
+    ]
   , testGroup "SimplifierTests"
     [ testProperty "buffer-simplification" $ \(expr :: Expr Buf) -> ioProperty $ do
         let simplified = Expr.simplify expr
@@ -632,60 +634,6 @@ tests = testGroup "hevm"
         (_, [Cex _]) <- withSolvers Z3 1 Nothing $ \s -> checkAssert s [0x51] c (Just ("fun(uint256)", [AbiUIntType 256])) [] defaultVeriOpts
         putStrLn "expected counterexample found"
  ]
-
-  , testGroup "Dapp Tests"
-    [ testCase "Trivial-Pass" $ do
-        let testFile = "test/contracts/pass/trivial.sol"
-        runDappTest testFile ".*" >>= assertEqual "test result" True
-    , testCase "Trivial-Fail" $ do
-        let testFile = "test/contracts/fail/trivial.sol"
-        runDappTest testFile "testFalse" >>= assertEqual "test result" False
-    , testCase "Abstract" $ do
-        let testFile = "test/contracts/pass/abstract.sol"
-        runDappTest testFile ".*" >>= assertEqual "test result" True
-    , testCase "Constantinople" $ do
-        let testFile = "test/contracts/pass/constantinople.sol"
-        runDappTest testFile ".*" >>= assertEqual "test result" True
-    , testCase "Prove-Tests-Pass" $ do
-        let testFile = "test/contracts/pass/dsProvePass.sol"
-        runDappTest testFile ".*" >>= assertEqual "test result" True
-    , testCase "Prove-Tests-Fail" $ do
-        let testFile = "test/contracts/fail/dsProveFail.sol"
-        runDappTest testFile "prove_trivial" >>= assertEqual "test result" False
-        runDappTest testFile "prove_add" >>= assertEqual "test result" False
-        --runDappTest testFile "prove_smtTimeout" >>= assertEqual "test result" False
-        runDappTest testFile "prove_multi" >>= assertEqual "test result" False
-        runDappTest testFile "prove_mul" >>= assertEqual "test result" False
-        -- TODO: implement overflow checking optimizations and enable, currently this runs forever
-        --runDappTest testFile "prove_distributivity" >>= assertEqual "test result" False
-        runDappTest testFile "prove_transfer" >>= assertEqual "test result" False
-    , testCase "Loop-Tests" $ do
-        let testFile = "test/contracts/pass/loops.sol"
-<<<<<<< HEAD
-        runDappTestCustom testFile "prove_loop" (Just 10) False Nothing >>= assertEqual "test result" True
-        runDappTestCustom testFile "prove_loop" (Just 100) False Nothing >>= assertEqual "test result" False
-=======
-        runDappTestCustom testFile "prove_loop" Nothing (Just 10) False >>= assertEqual "test result" True
-        runDappTestCustom testFile "prove_loop" Nothing (Just 100) False >>= assertEqual "test result" False
->>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
-    , testCase "Invariant-Tests-Pass" $ do
-        let testFile = "test/contracts/pass/invariants.sol"
-        runDappTest testFile ".*" >>= assertEqual "test result" True
-    , testCase "Invariant-Tests-Fail" $ do
-        let testFile = "test/contracts/fail/invariantFail.sol"
-        runDappTest testFile "invariantFirst" >>= assertEqual "test result" False
-        runDappTest testFile "invariantCount" >>= assertEqual "test result" False
-    , testCase "Cheat-Codes-Pass" $ do
-        let testFile = "test/contracts/pass/cheatCodes.sol"
-        runDappTest testFile ".*" >>= assertEqual "test result" True
-    , testCase "Cheat-Codes-Fail" $ do
-        let testFile = "test/contracts/fail/cheatCodes.sol"
-<<<<<<< HEAD
-        runDappTestCustom testFile "testBadFFI" Nothing False Nothing >>= assertEqual "test result" False
-=======
-        runDappTestCustom testFile "testBadFFI" Nothing Nothing False >>= assertEqual "test result" False
->>>>>>> 89ed79f8 (test: add test harness for handwritten bytecode)
-    ]
   , testGroup "Symbolic execution"
       [
      testCase "require-test" $ do
@@ -2334,6 +2282,15 @@ instance Arbitrary (Expr Buf) where
 instance Arbitrary (Expr End) where
   arbitrary = sized genEnd
 
+data OpContract = OpContract [Op]
+  deriving (Show)
+
+getOpData :: OpContract-> [Op]
+getOpData (OpContract x) = x
+
+instance Arbitrary OpContract where
+  arbitrary = fmap OpContract (sized genContract)
+
 newtype LitOnly a = LitOnly a
   deriving (Show, Eq)
 
@@ -2384,6 +2341,127 @@ genEnd sz = oneof
    subStore = genStorage (sz `div` 2)
    subWord = defaultWord (sz `div` 2)
    subEnd = genEnd (sz `div` 2)
+
+genContract :: Int -> Gen [Op]
+genContract n = vectorOf n genOne
+  where
+  genOne :: Gen Op
+  genOne = frequency [
+    -- math ops
+    (1, frequency [
+        (1, pure OpAdd)
+      , (1, pure OpMul)
+      , (1, pure OpSub)
+      , (1, pure OpDiv)
+      , (1, pure OpSdiv)
+      , (1, pure OpMod)
+      , (1, pure OpSmod)
+      , (1, pure OpAddmod)
+      , (1, pure OpMulmod)
+      , (1, pure OpExp)
+      , (1, pure OpSignextend)
+      , (1, pure OpLt)
+      , (1, pure OpGt)
+      , (1, pure OpSlt)
+      , (1, pure OpSgt)]
+    )
+    -- Comparison & binary ops
+    , (1, frequency [
+        (1, pure OpEq)
+      , (1, pure OpIszero)
+      , (1, pure OpAnd)
+      , (1, pure OpOr)
+      , (1, pure OpXor)
+      , (1, pure OpNot)
+      , (1, pure OpByte)
+      , (1, pure OpShl)
+      , (1, pure OpShr)
+      , (1, pure OpSar)]
+     )
+    -- Transform
+    , (1, pure OpSha3)
+    -- Get some info
+    , (1, frequency [
+        (1, pure OpAddress)
+      , (1, pure OpBalance)
+      , (1, pure OpOrigin)
+      , (1, pure OpCaller)
+      , (1, pure OpCallvalue)
+      , (1, pure OpCalldataload)
+      , (1, pure OpCalldatasize)
+      , (1, pure OpCalldatacopy)
+      , (1, pure OpCodesize)
+      , (1, pure OpCodecopy)
+      , (1, pure OpGasprice)
+      , (1, pure OpExtcodesize)
+      , (1, pure OpExtcodecopy)
+      , (1, pure OpReturndatasize)
+      , (1, pure OpReturndatacopy)
+      , (1, pure OpExtcodehash)
+      , (1, pure OpBlockhash)
+      , (1, pure OpCoinbase)
+      , (1, pure OpTimestamp)
+      , (1, pure OpNumber)
+      , (1, pure OpPrevRandao)
+      , (1, pure OpGaslimit)
+      , (1, pure OpChainid)
+      , (1, pure OpSelfbalance)
+      , (1, pure OpBaseFee)
+      , (1, pure OpPc)
+      , (1, pure OpMsize)
+      , (1, pure OpGas)
+      , (1, pure OpCall)]
+    )
+    -- memory manip
+    , (1, frequency [
+        (1, pure OpMload)
+      , (2, pure OpMstore)
+      , (2, pure OpMstore8)]
+    )
+    -- storage manip
+    , (1, frequency [
+        (1, pure OpSload)
+      , (4, pure OpSstore)]
+    )
+    -- Jumping around
+    , (1, frequency [
+        (1, pure OpJump)
+        , (1, pure OpJumpi)
+        , (1, pure OpJumpdest)]
+    )
+    -- calling out
+    , (1, frequency [
+        (1, pure OpStaticcall)
+      , (1, pure OpCallcode)
+      , (1, pure OpDelegatecall)
+      , (1, pure OpCreate)
+      , (1, pure OpCreate2)
+      , (1, pure OpSelfdestruct)]
+    )
+    -- manipulate stack
+    , (1, frequency [
+        (1, pure OpPop)
+      , (1, do
+          x <- arbitrary
+          pure $ OpPush (Lit x))
+      , (1, do
+          x <- chooseInt (1, 10)
+          pure $ OpDup (fromIntegral x))
+      , (1, do
+          x <- chooseInt (1, 10)
+          pure $ OpSwap (fromIntegral x))]
+    )
+      -- End states
+    , (1, frequency [
+        (1, pure OpStop)
+      , (1, pure OpReturn)
+      , (1, pure OpRevert)]
+    )
+      -- , (1, do
+      --     x <- chooseInt (1, 10)
+      --     pure $ OpLog x)
+    -- , (1, OpUnknown Word8)
+    ]
 
 genWord :: Int -> Int -> Gen (Expr EWord)
 genWord litFreq 0 = frequency
@@ -2574,118 +2652,3 @@ bothM f (a, a') = do
 applyPattern :: String -> TestTree  -> TestTree
 applyPattern p = localOption (TestPattern (parseExpr p))
 
-runDappTestCustom :: FilePath -> Text -> Fetch.RpcInfo -> Maybe Integer -> Bool -> IO Bool
-runDappTestCustom testFile match rpcinfo maxIter ffiAllowed = do
-  root <- Paths.getDataDir
-  (json, _) <- compileWithDSTest testFile
-  --TIO.writeFile "output.json" json
-  withCurrentDirectory root $ do
-    withSystemTempFile "output.json" $ \file handle -> do
-      hClose handle
-      TIO.writeFile file json
-      withSolvers Z3 1 Nothing $ \solvers -> do
-        opts <- testOpts solvers rpcinfo root json match maxIter ffiAllowed
-        dappTest opts file Nothing
-
-runDappTest :: FilePath -> Text -> IO Bool
-runDappTest testFile match = runDappTestCustom testFile match Nothing Nothing True
-
-debugDappTest :: FilePath -> IO ()
-debugDappTest testFile = do
-  root <- Paths.getDataDir
-  (json, _) <- compileWithDSTest testFile
-  --TIO.writeFile "output.json" json
-  withCurrentDirectory root $ do
-    withSystemTempFile "output.json" $ \file handle -> do
-      hClose handle
-      TIO.writeFile file json
-      withSolvers Z3 1 Nothing $ \solvers -> do
-        opts <- testOpts solvers Nothing root json ".*" Nothing True
-        TTY.main opts root file
-
-testOpts :: SolverGroup -> Fetch.RpcInfo -> FilePath -> Text -> Text -> Maybe Integer -> Bool -> IO UnitTestOptions
-testOpts solvers rpcinfo root solcJson match maxIter allowFFI = do
-  srcInfo <- case readJSON solcJson of
-               Nothing -> error "Could not read solc json"
-               Just (contractMap, asts, sources) -> do
-                 sourceCache <- makeSourceCache sources asts
-                 pure $ dappInfo root contractMap sourceCache
-
-  params <- getParametersFromEnvironmentVariables Nothing
-
-  pure EVM.UnitTest.UnitTestOptions
-    { EVM.UnitTest.solvers = solvers
-    , EVM.UnitTest.rpcInfo = rpcinfo
-    , EVM.UnitTest.maxIter = maxIter
-    , EVM.UnitTest.askSmtIters = Nothing
-    , EVM.UnitTest.smtdebug = False
-    , EVM.UnitTest.smtTimeout = Nothing
-    , EVM.UnitTest.solver = Nothing
-    , EVM.UnitTest.covMatch = Nothing
-    , EVM.UnitTest.verbose = Just 1
-    , EVM.UnitTest.match = match
-    , EVM.UnitTest.maxDepth = Nothing
-    , EVM.UnitTest.fuzzRuns = 100
-    , EVM.UnitTest.replay = Nothing
-    , EVM.UnitTest.vmModifier = id
-    , EVM.UnitTest.testParams = params
-    , EVM.UnitTest.dapp = srcInfo
-    , EVM.UnitTest.ffiAllowed = allowFFI
-    }
-
-compileWithDSTest :: FilePath -> IO (Text, Text)
-compileWithDSTest src =
-  withSystemTempFile "input.json" $ \file handle -> do
-    hClose handle
-    dsTest <- readFile =<< Paths.getDataFileName "test/contracts/lib/test.sol"
-    erc20 <- readFile =<< Paths.getDataFileName "test/contracts/lib/erc20.sol"
-    testFilePath <- Paths.getDataFileName src
-    testFile <- readFile testFilePath
-    TIO.writeFile file
-      [i|
-      {
-        "language": "Solidity",
-        "sources": {
-          "ds-test/test.sol": {
-            "content": ${dsTest}
-          },
-          "lib/erc20.sol": {
-            "content": ${erc20}
-          },
-          "test.sol": {
-            "content": ${testFile}
-          }
-        },
-        "settings": {
-          "metadata": {
-            "useLiteralContent": true
-          },
-          "outputSelection": {
-            "*": {
-              "*": [
-                "metadata",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "abi",
-                "storageLayout",
-                "evm.bytecode.sourceMap",
-                "evm.bytecode.linkReferences",
-                "evm.bytecode.generatedSources",
-                "evm.deployedBytecode.sourceMap",
-                "evm.deployedBytecode.linkReferences",
-                "evm.deployedBytecode.generatedSources"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      }
-      |]
-    x <- T.pack <$>
-      readProcess
-        "solc"
-        ["--allow-paths", file, "--standard-json", file]
-        ""
-    return (x, T.pack testFilePath)

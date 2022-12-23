@@ -28,6 +28,7 @@ import Data.Maybe (fromMaybe)
 import Numeric (readHex, showHex)
 import Options.Generic
 import Control.Arrow ((>>>))
+import Control.Exception
 
 import qualified Data.ByteArray       as BA
 import qualified Data.Aeson           as JSON
@@ -126,6 +127,8 @@ data Error
   | SelfDestruct
   | TmpErr String
   deriving (Show, Eq, Ord)
+
+instance Exception Error
 
 -- Variables refering to a global environment
 data GVar (a :: EType) where

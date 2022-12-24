@@ -154,6 +154,19 @@ tests = testGroup "hevm"
           else do
             putStrLn $ "result: " <> (show res)
     ]
+      -- *** Failed! (after 373 tests):
+      -- Exception:
+      --   Internal Error: overflow when converting buffer to list
+      --   CallStack (from HasCallStack):
+      --     error, called at src/EVM/Expr.hs:464:20 in hevm-0.50.0-inplace:EVM.Expr
+      -- OpContract [OpPush (Lit 0x6),OpPush (Lit 0x1),OpPush (Lit 0x9),OpPush (Lit 0x8),OpGas,OpPush (Lit 0x4),OpReturn,OpPush (Lit 0x2),OpPush (Lit 0x4),OpPop,OpPrevRandao,OpPush (Lit 0x8),OpPush (Lit 0x5),OpPush (Lit 0x4),OpMulmod,OpPush (Lit 0x4),OpCalldataload,OpNot,OpPush (Lit 0x4),OpJumpdest,OpCaller,OpDup 2,OpPush (Lit 0x7),OpPush (Lit 0x5),OpPush (Lit 0x8),OpPc,OpJumpi,OpJumpdest,OpSwap 5,OpPush (Lit 0x4),OpPush (Lit 0x7),OpPush (Lit 0x7),OpPush (Lit 0x2),OpDup 4,OpPush (Lit 0xa),OpJumpdest,OpPush (Lit 0x5),OpJumpdest,OpPush (Lit 0x7),OpDup 3,OpJump,OpDup 2,OpPush (Lit 0xa),OpPush (Lit 0x9),OpSwap 7,OpPush (Lit 0x1),OpPush (Lit 0x2),OpPush (Lit 0x9),OpSwap 7,OpPush (Lit 0x6),OpPop,OpPush (Lit 0xa),OpPush (Lit 0x9),OpPush (Lit 0x5),OpPush (Lit 0x2),OpCoinbase,OpPush (Lit 0x5),OpJumpdest,OpPush (Lit 0x9),OpPop,OpGas,OpJump,OpPush (Lit 0x2),OpJumpdest,OpDup 9,OpJumpdest,OpPop,OpDiv,OpSgt,OpPush (Lit 0x1),OpPush (Lit 0x3),OpBlockhash]
+            |]
+          Right (_, [Cex _, Cex _]) <- withSolvers Z3 1 Nothing $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint256,uint256)", [AbiUIntType 256, AbiUIntType 256])) [] defaultVeriOpts
+          putStrLn "expected 2 counterexamples found"
+        ,
+        testCase "assert-2nd-arg" $ do
+          Just c <- solcRuntime "AssertFailTwoParams"
+
   , testGroup "SimplifierTests"
     [ testProperty "buffer-simplification" $ \(expr :: Expr Buf) -> ioProperty $ do
         let simplified = Expr.simplify expr

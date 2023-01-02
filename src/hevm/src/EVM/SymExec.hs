@@ -61,6 +61,15 @@ data VeriOpts = VeriOpts
   }
   deriving (Eq, Show)
 
+noLoopVeriOpts :: VeriOpts
+noLoopVeriOpts = VeriOpts
+  { simp = True
+  , debug = False
+  , maxIter = Just 0
+  , askSmtIters = Just 0
+  , rpcInfo = Nothing
+  }
+
 defaultVeriOpts :: VeriOpts
 defaultVeriOpts = VeriOpts
   { simp = True
@@ -460,8 +469,13 @@ extractProps = \case
   GVar _ -> error "cannot extract props from a GVar"
 
 
-checkExprSanity :: Expr 'End -> Bool
-checkExprSanity = undefined
+tooLargeCopy :: Expr 'End -> Bool
+tooLargeCopy expr = or (foldExpr go [] expr)
+  where
+    go :: Expr a -> [Bool]
+    go = \case
+      (CopySlice _ _ (Lit size) _ _) -> [size > 1024]
+      _  ->  []
 
 getRight ::Either a b -> b
 getRight (Right a) = a
@@ -484,9 +498,6 @@ verify solvers opts preState maybepost = do
 
   putStrLn $ "Explored contract (" <> show (Expr.numBranches expr) <> " branches)"
 
-  if checkExprSanity expr then putStrLn "Expression is OK"
-                               else putStrLn "Expression is NOT OK"
-
   case maybepost of
     Nothing -> pure $ Right (expr, [Qed ()])
     Just post -> do
@@ -498,7 +509,7 @@ verify solvers opts preState maybepost = do
               PBool True -> False
               _ -> True
         assumes = view constraints preState
-      if (isRight canViolate) then do
+      if not (tooLargeCopy expr) && isRight canViolate then do
         let withQueries = fmap (\(pcs, leaf) -> (assertProps (PNeg (post preState leaf) : assumes <> extractProps leaf <> pcs), leaf)) (getRight canViolate)
         putStrLn $ "Checking for reachability of " <> show (length withQueries) <> " potential property violation(s)"
         when (debug opts) $ forM_ (zip [(1 :: Int)..] withQueries) $ \(idx, (q, leaf)) -> do
@@ -510,7 +521,8 @@ verify solvers opts preState maybepost = do
         let cexs = filter (\(res, _) -> not . isUnsat $ res) results
         pure $ if Prelude.null cexs then Right (expr, [Qed ()]) else Right (expr, fmap toVRes cexs)
       else do
-        pure $ Left $ getLeft canViolate
+        if tooLargeCopy expr then pure $ Left (EVM.Types.TmpErr "Too Large Copy")
+                        else pure $ Left $ getLeft canViolate
   where
     dispatch queries = flip mapConcurrently queries $ \(query, leaf) -> do
       res <- checkSat solvers query

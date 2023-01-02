@@ -121,7 +121,6 @@ data Continuation a
      = Stopped a              -- ^ Program finished
      | Continue (Stepper a)   -- ^ Took one step; more steps to go
 
-
 -- | This turns a @Stepper@ into a state action usable
 -- from within the TTY loop, yielding a @StepOutcome@ depending on the @StepMode@.
 interpret

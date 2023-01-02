@@ -80,6 +80,19 @@ import Data.Either (isLeft)
 main :: IO ()
 main = defaultMain tests
 
+toW8fromLitB :: Expr 'Byte -> Data.Word.Word8
+toW8fromLitB (LitByte a) = a
+toW8fromLitB _ = error "nope"
+
+noLoopVeriOpts :: VeriOpts
+noLoopVeriOpts = VeriOpts
+  { simp = True
+  , debug = False
+  , maxIter = Just 0
+  , askSmtIters = Just 0
+  , rpcInfo = Nothing
+  }
+
 -- | run a subset of tests in the repl. p is a tasty pattern:
 -- https://github.com/UnkindPartition/tasty/tree/ee6fe7136fbcc6312da51d7f1b396e1a2d16b98a#patterns
 runSubSet :: String -> IO ()
@@ -136,16 +149,6 @@ tests = testGroup "hevm"
     [ testProperty "random-contract-with-symbolic-call" $ \(expr :: OpContract) -> ioProperty $ do
         let lits = assemble . getOpData $ expr
             w8s = toW8fromLitB <$> lits
-            toW8fromLitB :: Expr 'Byte -> Data.Word.Word8
-            toW8fromLitB (LitByte a) = a
-            toW8fromLitB _ = error "nope"
-            noLoopVeriOpts = VeriOpts
-              { simp = True
-              , debug = False
-              , maxIter = Just 0
-              , askSmtIters = Just 0
-              , rpcInfo = Nothing
-              }
         putStrLn $ "Contract: " <> (show expr)
         res <- withSolvers Z3 1 Nothing $ (\s ->
               checkAssert s defaultPanicCodes (BS.pack $ Vector.toList w8s) Nothing [] noLoopVeriOpts)

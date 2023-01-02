@@ -20,7 +20,6 @@ import EVM.FeeSchedule (FeeSchedule (..))
 import Options.Generic as Options
 import qualified EVM.Precompiled
 import qualified EVM.Expr as Expr
-import Control.Exception
 
 import Control.Lens hiding (op, (:<), (|>), (.>))
 import Control.Monad.State.Strict hiding (state)
@@ -89,8 +88,7 @@ data Error
   | SMTTimeout
   | FFI [AbiValue]
   | NonceOverflow
-deriving instance (Show) Error
-instance Exception Error
+deriving instance Show Error
 
 -- | The possible result states of a VM
 data VMResult

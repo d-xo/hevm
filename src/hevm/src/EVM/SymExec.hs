@@ -460,6 +460,9 @@ extractProps = \case
   GVar _ -> error "cannot extract props from a GVar"
 
 
+checkExprSanity :: Expr 'End -> Bool
+checkExprSanity = undefined
+
 getRight ::Either a b -> b
 getRight (Right a) = a
 getRight _ = undefined
@@ -480,6 +483,9 @@ verify solvers opts preState maybepost = do
   when (debug opts) $ T.writeFile "simplified.expr" (formatExpr expr)
 
   putStrLn $ "Explored contract (" <> show (Expr.numBranches expr) <> " branches)"
+
+  if checkExprSanity expr then putStrLn "Expression is OK"
+                               else putStrLn "Expression is NOT OK"
 
   case maybepost of
     Nothing -> pure $ Right (expr, [Qed ()])

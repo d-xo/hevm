@@ -851,6 +851,7 @@ exec1 = do
               _ -> do
                 assign (state . stack) xs
                 pushSym (CodeSize x')
+                next
             [] ->
               underrun
 

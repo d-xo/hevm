@@ -32,6 +32,7 @@ import Test.Tasty.QuickCheck hiding (Failure)
 import Test.QuickCheck.Instances.Text()
 import Test.QuickCheck.Instances.Natural()
 import Test.QuickCheck.Instances.ByteString()
+import Test.QuickCheck (generate, elements)
 import Test.Tasty.HUnit
 import Test.Tasty.Runners hiding (Failure)
 import Test.Tasty.ExpectedFailure
@@ -135,18 +136,19 @@ tests = testGroup "hevm"
   -- applying some simplification rules, and then using the smt encoding to
   -- check that the simplified version is semantically equivalent to the
   -- unsimplified one
-  -- , testGroup "contractQuickCheck"
-  --   [ testProperty "random-contract-with-symbolic-call" $ \(expr :: OpContract) -> ioProperty $ do
-  --       let lits = assemble . getOpData $ expr
-  --           w8s = toW8fromLitB <$> lits
-  --       putStrLn $ "Contract: " <> (show expr)
-  --       res <- withSolvers Z3 1 Nothing $ (\s ->
-  --             checkAssert s defaultPanicCodes (BS.pack $ Vector.toList w8s) Nothing [] noLoopVeriOpts)
-  --       if isLeft res then do
-  --            putStrLn $ "Found issue: " <> (show $ getLeft res)
-  --         else do
-  --           putStrLn $ "result: " <> (show res)
-  --   ]
+  , testGroup "contractQuickCheck"
+    [ testProperty "random-contract-with-symbolic-call" $ \(expr :: OpContract) -> ioProperty $ do
+        expr2 <- fixContractJumps expr
+        putStrLn $ "Contract: " <> (show expr2)
+        let lits = assemble . getOpData $ expr2
+            w8s = toW8fromLitB <$> lits
+        res <- withSolvers Z3 1 Nothing $ (\s ->
+              checkAssert s defaultPanicCodes (BS.pack $ Vector.toList w8s) Nothing [] noLoopVeriOpts)
+        if isLeft res then do
+             putStrLn $ "Found issue: " <> (show $ getLeft res)
+          else do
+            putStrLn $ "result: " <> (show res)
+    ]
   , testGroup "SimplifierTests"
     [ testProperty "buffer-simplification" $ \(expr :: Expr Buf) -> ioProperty $ do
         let simplified = Expr.simplify expr
@@ -2428,10 +2430,10 @@ genContract n = vectorOf n genOne
     ])
     -- Jumping around
     , (50, frequency [
-        (1, pure OpJump)
-        , (1, pure OpJumpi)
+          (1, pure OpJump)
+        , (10, pure OpJumpi)
     ])
-    , (100, pure OpJumpdest)
+    , (400, pure OpJumpdest)
     -- calling out
     , (1, frequency [
         (1, pure OpStaticcall)
@@ -2467,6 +2469,39 @@ genContract n = vectorOf n genOne
       --     pure $ OpLog x)
     -- , (1, OpUnknown Word8)
     ]
+randItem :: [a] -> IO a
+randItem = generate . Test.QuickCheck.elements
+
+getJumpDests :: [Op] -> [Int]
+getJumpDests ops = go ops 0 []
+    where
+      go :: [Op] -> Int -> [Int] -> [Int]
+      go [] _ dests = dests
+      go (a:ax) pos dests = case a of
+                       OpJumpdest -> go ax (pos+1) (pos:dests)
+                       _ -> go ax (pos+1) dests
+
+fixContractJumps :: OpContract -> IO OpContract
+fixContractJumps (OpContract ops) = do
+  let extOps = (ops++[OpJumpdest])
+      jumpDests = getJumpDests extOps
+      -- always end on an OpJumpdest so we don't have an issue with a "later" position
+      ops2 = fixup extOps 0 []
+      fixup :: [Op] -> Int -> [Op] -> IO [Op]
+      fixup [] _ ret = pure $ ret
+      fixup (a:ax) pos ret = case a of
+                           OpJumpi -> do
+                             rndPos <- randItem filt
+                             fixup ax (pos+1) (ret++[(OpPush (Lit (fromInteger (fromIntegral rndPos)))), (OpJumpi)])
+                             where
+                               filt = filter (> pos) jumpDests
+                           OpJump -> do
+                             rndPos <- randItem filt
+                             fixup ax (pos+1) (ret++[(OpPush (Lit (fromInteger (fromIntegral rndPos)))), (OpJump)])
+                             where
+                               filt = filter (> pos) jumpDests
+                           myop -> fixup ax (pos+1) (ret++[myop])
+  liftM OpContract ops2
 
 genWord :: Int -> Int -> Gen (Expr EWord)
 genWord litFreq 0 = frequency

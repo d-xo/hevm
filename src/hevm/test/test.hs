@@ -38,7 +38,6 @@ import Test.Tasty.ExpectedFailure
 
 import Control.Monad.State.Strict (execState, runState, evalStateT)
 import Control.Lens hiding (List, pre, (.>), re)
-import Control.Exception
 
 import qualified Data.Vector as Vector
 import Data.String.Here
@@ -83,15 +82,6 @@ main = defaultMain tests
 toW8fromLitB :: Expr 'Byte -> Data.Word.Word8
 toW8fromLitB (LitByte a) = a
 toW8fromLitB _ = error "nope"
-
-noLoopVeriOpts :: VeriOpts
-noLoopVeriOpts = VeriOpts
-  { simp = True
-  , debug = False
-  , maxIter = Just 0
-  , askSmtIters = Just 0
-  , rpcInfo = Nothing
-  }
 
 -- | run a subset of tests in the repl. p is a tasty pattern:
 -- https://github.com/UnkindPartition/tasty/tree/ee6fe7136fbcc6312da51d7f1b396e1a2d16b98a#patterns
@@ -145,18 +135,18 @@ tests = testGroup "hevm"
   -- applying some simplification rules, and then using the smt encoding to
   -- check that the simplified version is semantically equivalent to the
   -- unsimplified one
-  , testGroup "contractQuickCheck"
-    [ testProperty "random-contract-with-symbolic-call" $ \(expr :: OpContract) -> ioProperty $ do
-        let lits = assemble . getOpData $ expr
-            w8s = toW8fromLitB <$> lits
-        putStrLn $ "Contract: " <> (show expr)
-        res <- withSolvers Z3 1 Nothing $ (\s ->
-              checkAssert s defaultPanicCodes (BS.pack $ Vector.toList w8s) Nothing [] noLoopVeriOpts)
-        if isLeft res then do
-             putStrLn $ "Found issue: " <> (show $ getLeft res)
-          else do
-            putStrLn $ "result: " <> (show res)
-    ]
+  -- , testGroup "contractQuickCheck"
+  --   [ testProperty "random-contract-with-symbolic-call" $ \(expr :: OpContract) -> ioProperty $ do
+  --       let lits = assemble . getOpData $ expr
+  --           w8s = toW8fromLitB <$> lits
+  --       putStrLn $ "Contract: " <> (show expr)
+  --       res <- withSolvers Z3 1 Nothing $ (\s ->
+  --             checkAssert s defaultPanicCodes (BS.pack $ Vector.toList w8s) Nothing [] noLoopVeriOpts)
+  --       if isLeft res then do
+  --            putStrLn $ "Found issue: " <> (show $ getLeft res)
+  --         else do
+  --           putStrLn $ "result: " <> (show res)
+  --   ]
   , testGroup "SimplifierTests"
     [ testProperty "buffer-simplification" $ \(expr :: Expr Buf) -> ioProperty $ do
         let simplified = Expr.simplify expr

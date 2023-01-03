@@ -9,6 +9,7 @@ import EVM          (Contract, nonce, balance, bytecode, codehash)
 import EVM.Solidity (SrcMap, srcMapFile, srcMapOffset, srcMapLength, SourceCache, sourceFiles)
 import EVM.Types    (Addr, Expr, Expr (Lit), Expr(LitByte), EType (Byte))
 import EVM.Expr     (bufLength)
+import EVM.Op
 import Data.Word (Word8)
 
 import Control.Arrow   (second)
@@ -64,4 +65,9 @@ toW8fromLitB :: Expr 'Byte -> Data.Word.Word8
 toW8fromLitB (LitByte a) = a
 toW8fromLitB _ = error "nope"
 
+data OpContract = OpContract [Op]
+  deriving (Show)
+
+getOpData :: OpContract-> [Op]
+getOpData (OpContract x) = x
 

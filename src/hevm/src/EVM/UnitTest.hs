@@ -344,7 +344,7 @@ coverageReport dapp cov =
     allPositions :: Set (Text, Int)
     allPositions =
       ( Set.fromList
-      . mapMaybe (srcMapCodePos sources)
+      . mapMaybe (EVM.Debug.srcMapCodePos sources)
       . toList
       $ mconcat
         ( view dappSolcByName dapp
@@ -354,7 +354,7 @@ coverageReport dapp cov =
       )
 
     srcMapCov :: MultiSet (Text, Int)
-    srcMapCov = MultiSet.mapMaybe (srcMapCodePos sources) cov
+    srcMapCov = MultiSet.mapMaybe (EVM.Debug.srcMapCodePos sources) cov
 
     linesByName :: Map Text (Vector ByteString)
     linesByName =

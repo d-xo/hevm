@@ -2445,9 +2445,9 @@ genContract n = vectorOf n genOne
       , (1, pure OpSelfdestruct)
     ])
     -- manipulate stack
-    , (600, frequency [
+    , (900, frequency [
         (1, pure OpPop)
-      , (10, do
+      , (20, do
           -- x <- arbitrary
           x <- chooseInt (1, 10)
           pure $ OpPush (Lit (fromIntegral x)))
@@ -2479,6 +2479,9 @@ getJumpDests ops = go ops 0 []
       go [] _ dests = dests
       go (a:ax) pos dests = case a of
                        OpJumpdest -> go ax (pos+1) (pos:dests)
+                       OpDup _ -> go ax (pos+2) dests
+                       OpSwap _ -> go ax (pos+2) dests
+                       OpPush _ -> go ax (pos+33) dests
                        _ -> go ax (pos+1) dests
 
 fixContractJumps :: OpContract -> IO OpContract
@@ -2490,17 +2493,22 @@ fixContractJumps (OpContract ops) = do
       fixup :: [Op] -> Int -> [Op] -> IO [Op]
       fixup [] _ ret = pure $ ret
       fixup (a:ax) pos ret = case a of
-                           OpJumpi -> do
-                             rndPos <- randItem filt
-                             fixup ax (pos+1) (ret++[(OpPush (Lit (fromInteger (fromIntegral rndPos)))), (OpJumpi)])
-                             where
-                               filt = filter (> pos) jumpDests
-                           OpJump -> do
-                             rndPos <- randItem filt
-                             fixup ax (pos+1) (ret++[(OpPush (Lit (fromInteger (fromIntegral rndPos)))), (OpJump)])
-                             where
-                               filt = filter (> pos) jumpDests
-                           myop -> fixup ax (pos+1) (ret++[myop])
+        OpJumpi -> do
+          putStrLn $ show jumpDests
+          rndPos <- randItem filt
+          fixup ax (pos+1) (ret++[(OpPush (Lit (fromInteger (fromIntegral rndPos)))), (OpJumpi)])
+          where
+            filt = filter (> pos) jumpDests
+        OpJump -> do
+          putStrLn $ show jumpDests
+          rndPos <- randItem filt
+          fixup ax (pos+1) (ret++[(OpPush (Lit (fromInteger (fromIntegral rndPos)))), (OpJump)])
+          where
+            filt = filter (> pos) jumpDests
+        myop@(OpDup _)  -> fixup ax (pos+2) (ret++[myop])
+        myop@(OpSwap _) -> fixup ax (pos+2) (ret++[myop])
+        myop@(OpPush _) -> fixup ax (pos+33) (ret++[myop])
+        myop -> fixup ax (pos+1) (ret++[myop])
   liftM OpContract ops2
 
 genWord :: Int -> Int -> Gen (Expr EWord)

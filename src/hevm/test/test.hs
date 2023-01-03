@@ -1017,7 +1017,7 @@ tests = testGroup "hevm"
             }
             |]
         Right (_, [Qed _]) <- withSolvers Z3 1 Nothing $ \s -> checkAssert s defaultPanicCodes c (Just ("fun(uint8,uint8,uint8)", [AbiUIntType 8, AbiUIntType 8, AbiUIntType 8])) [] defaultVeriOpts
-        putStrLn "MULMOD is fine on NON overflow values"
+        putStrLn "ADDMOD is fine on NON overflow values"
       ,
       testCase "opcode-mulmod-no-overflow" $ do
         Just c <- solcRuntime "MyContract"

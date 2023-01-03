@@ -522,7 +522,7 @@ verify solvers opts preState maybepost = do
         pure $ if Prelude.null cexs then Right (expr, [Qed ()]) else Right (expr, fmap toVRes cexs)
       else do
         if tooLargeCopy expr then pure $ Left (EVM.Types.TmpErr "Too Large Copy")
-                        else pure $ Left $ getLeft canViolate
+                             else pure $ Left $ getLeft canViolate
   where
     dispatch queries = flip mapConcurrently queries $ \(query, leaf) -> do
       res <- checkSat solvers query

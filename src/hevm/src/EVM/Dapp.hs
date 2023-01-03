@@ -203,4 +203,3 @@ srcMapCodePos cache sm =
   fmap (second f) $ cache ^? sourceFiles . ix (srcMapFile sm)
   where
     f v = BS.count 0xa (BS.take (srcMapOffset sm - 1) v) + 1
-

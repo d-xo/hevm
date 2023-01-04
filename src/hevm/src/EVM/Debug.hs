@@ -70,4 +70,3 @@ data OpContract = OpContract [Op]
 
 getOpData :: OpContract-> [Op]
 getOpData (OpContract x) = x
-

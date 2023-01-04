@@ -583,7 +583,7 @@ tests = testGroup "hevm"
         print $ length a
         print $ show a
         putStrLn "expected counterexample found"
-     ,
+    ,
      testCase "access-out-of-bounds-array" $ do
         Just c <- solcRuntime "MyContract"
             [i|
@@ -632,8 +632,52 @@ tests = testGroup "hevm"
             |]
         Right (_, [Cex _]) <- withSolvers Z3 1 Nothing $ \s -> checkAssert s [0x51] c (Just ("fun(uint256)", [AbiUIntType 256])) [] defaultVeriOpts
         putStrLn "expected counterexample found"
- ]
-  , testGroup "Symbolic execution"
+  ]
+  , testGroup "Dapp Tests"
+    [ testCase "Trivial-Pass" $ do
+        let testFile = "test/contracts/pass/trivial.sol"
+        runDappTest testFile ".*" >>= assertEqual "test result" True
+    , testCase "Trivial-Fail" $ do
+        let testFile = "test/contracts/fail/trivial.sol"
+        runDappTest testFile "testFalse" >>= assertEqual "test result" False
+    , testCase "Abstract" $ do
+        let testFile = "test/contracts/pass/abstract.sol"
+        runDappTest testFile ".*" >>= assertEqual "test result" True
+    , testCase "Constantinople" $ do
+        let testFile = "test/contracts/pass/constantinople.sol"
+        runDappTest testFile ".*" >>= assertEqual "test result" True
+    , testCase "Prove-Tests-Pass" $ do
+        let testFile = "test/contracts/pass/dsProvePass.sol"
+        runDappTest testFile ".*" >>= assertEqual "test result" True
+    , testCase "Prove-Tests-Fail" $ do
+        let testFile = "test/contracts/fail/dsProveFail.sol"
+        runDappTest testFile "prove_trivial" >>= assertEqual "test result" False
+        runDappTest testFile "prove_add" >>= assertEqual "test result" False
+        --runDappTest testFile "prove_smtTimeout" >>= assertEqual "test result" False
+        runDappTest testFile "prove_multi" >>= assertEqual "test result" False
+        runDappTest testFile "prove_mul" >>= assertEqual "test result" False
+        -- TODO: implement overflow checking optimizations and enable, currently this runs forever
+        --runDappTest testFile "prove_distributivity" >>= assertEqual "test result" False
+        runDappTest testFile "prove_transfer" >>= assertEqual "test result" False
+    , testCase "Loop-Tests" $ do
+        let testFile = "test/contracts/pass/loops.sol"
+        runDappTestCustom testFile "prove_loop" (Just 10) False Nothing >>= assertEqual "test result" True
+        runDappTestCustom testFile "prove_loop" (Just 100) False Nothing >>= assertEqual "test result" False
+    , testCase "Invariant-Tests-Pass" $ do
+        let testFile = "test/contracts/pass/invariants.sol"
+        runDappTest testFile ".*" >>= assertEqual "test result" True
+    , testCase "Invariant-Tests-Fail" $ do
+        let testFile = "test/contracts/fail/invariantFail.sol"
+        runDappTest testFile "invariantFirst" >>= assertEqual "test result" False
+        runDappTest testFile "invariantCount" >>= assertEqual "test result" False
+    , testCase "Cheat-Codes-Pass" $ do
+        let testFile = "test/contracts/pass/cheatCodes.sol"
+        runDappTest testFile ".*" >>= assertEqual "test result" True
+    , testCase "Cheat-Codes-Fail" $ do
+        let testFile = "test/contracts/fail/cheatCodes.sol"
+        runDappTestCustom testFile "testBadFFI" Nothing False Nothing >>= assertEqual "test result" False
+    ],
+  testGroup "Symbolic execution"
       [
      testCase "require-test" $ do
         Just c <- solcRuntime "MyContract"

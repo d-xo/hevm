@@ -6,7 +6,7 @@
 module Main where
 
 import Data.Text (Text)
-import Data.ByteString (ByteString, pack)
+import Data.ByteString (ByteString)
 import Data.Bits hiding (And, Xor)
 import System.Directory
 import GHC.Natural
@@ -15,7 +15,6 @@ import Text.RE.TDFA.String
 import Text.RE.Replace
 import Data.Time
 import System.Environment
-import qualified Paths_hevm as Paths
 import qualified Data.Word
 
 import Prelude hiding (fail, LT, GT)
@@ -31,7 +30,7 @@ import Test.Tasty.QuickCheck hiding (Failure)
 import Test.QuickCheck.Instances.Text()
 import Test.QuickCheck.Instances.Natural()
 import Test.QuickCheck.Instances.ByteString()
-import Test.QuickCheck (generate, elements)
+import Test.QuickCheck (elements)
 import Test.Tasty.HUnit
 import Test.Tasty.Runners hiding (Failure)
 import Test.Tasty.ExpectedFailure
@@ -42,7 +41,6 @@ import Control.Lens hiding (List, pre, (.>), re)
 import qualified Data.Vector as Vector
 import Data.String.Here
 import qualified Data.Map.Strict as Map
-import Data.Map (Map)
 import Data.Vector (Vector)
 
 import Data.Binary.Put (runPut)
@@ -52,8 +50,6 @@ import EVM hiding (Query, allowFFI)
 import EVM.SymExec
 import EVM.Assembler
 import EVM.Op
-import EVM.UnitTest (dappTest, getParametersFromEnvironmentVariables, UnitTestOptions)
--- import EVM.UnitTest.UnitTestOptions
 import EVM.ABI
 import EVM.Exec
 import qualified EVM.Patricia as Patricia
@@ -63,18 +59,15 @@ import EVM.Solidity
 import EVM.Types
 import EVM.Traversals
 import EVM.SMT hiding (one)
-import EVM.SMT hiding (storage, calldata)
 import EVM.Concrete (createAddress)
 import qualified EVM.FeeSchedule as FeeSchedule
-import qualified EVM.TTY as TTY
 import qualified EVM.Expr as Expr
 import qualified Data.Text as T
 import qualified EVM.Stepper as Stepper
 import qualified EVM.Fetch as Fetch
-import qualified Data.Text.IO as TIO
-import Language.SMT2.Syntax (SpecConstant())
 import Data.List (isSubsequenceOf)
 import Data.Either (isLeft)
+import EVM.TestUtils
 
 main :: IO ()
 main = defaultMain tests

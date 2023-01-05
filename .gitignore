@@ -1,6 +1,7 @@
 # nix
 result
 result-*
+tag
 
 # direnv
 .direnv/

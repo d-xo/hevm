@@ -137,11 +137,13 @@ makeVeriOpts opts =
 dappTest :: UnitTestOptions -> String -> Maybe String -> IO Bool
 dappTest opts solcFile cache' = do
   out <- liftIO $ readSolc solcFile
+  putStrLn $ " read solcFile: " <> show solcFile
   case out of
     Just (contractMap, _) -> do
       let unitTests = findUnitTests (EVM.UnitTest.match opts) $ Map.elems contractMap
       results <- concatMapM (runUnitTestContract opts contractMap) unitTests
       let (passing, vms) = unzip results
+      putStrLn $ "passing: " <> (show passing)
       case cache' of
         Nothing ->
           pure ()
@@ -152,9 +154,7 @@ dappTest opts solcFile cache' = do
           in
             liftIO $ Git.saveFacts (Git.RepoAt path) (Facts.cacheFacts evmcache)
 
-      if and passing
-         then return True
-         else return False
+      return $ and passing
     Nothing ->
       error ("Failed to read Solidity JSON for `" ++ solcFile ++ "'")
 
@@ -646,6 +646,7 @@ execTest opts@UnitTestOptions{..} vm testName args =
 -- | Define the thread spawner for normal test cases
 runOne :: UnitTestOptions -> VM -> ABIMethod -> AbiValue -> IO (Text, Either Text Text, VM)
 runOne opts@UnitTestOptions{..} vm testName args = do
+  putStrLn $ "runOne now ABI method: " <> show testName
   let argInfo = pack (if args == emptyAbi then "" else " with arguments: " <> show args)
   (bailed, vm') <- execTest opts vm testName args
   (success, vm'') <-

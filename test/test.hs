@@ -633,7 +633,7 @@ tests = testGroup "hevm"
         Right (_, [Cex _]) <- withSolvers Z3 1 Nothing $ \s -> checkAssert s [0x51] c (Just ("fun(uint256)", [AbiUIntType 256])) [] defaultVeriOpts
         putStrLn "expected counterexample found"
   ]
-  , testGroup "Dapp Tests"
+  , testGroup "Dapp-Tests"
     [ testCase "Trivial-Pass" $ do
         let testFile = "test/contracts/pass/trivial.sol"
         runDappTest testFile ".*" >>= assertEqual "test result" True

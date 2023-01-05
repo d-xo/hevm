@@ -30,6 +30,7 @@ runDappTestCustom testFile match maxIter ffiAllowed rpcinfo = do
       T.writeFile file json
       withSolvers Z3 1 Nothing $ \solvers -> do
         opts <- testOpts solvers root json match maxIter ffiAllowed rpcinfo
+        putStrLn $ "here next is dappTest"
         dappTest opts file Nothing
 
 runDappTest :: FilePath -> Text -> IO Bool

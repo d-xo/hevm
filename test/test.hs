@@ -601,7 +601,7 @@ tests = testGroup "hevm"
         putStrLn "expected counterexample found"
       ,
       -- TODO the system currently does not allow for symbolic array size allocation
-      expectFail $ testCase "alloc-too-much" $ do
+      testCase "alloc-too-much" $ do
         Just c <- solcRuntime "MyContract"
             [i|
             contract MyContract {
@@ -1044,8 +1044,8 @@ tests = testGroup "hevm"
                 uint16 r2;
                 uint16 g2;
                 assembly {
-                  r1 := mul(a,b)
-                  r2 := add(r1, c)
+                  r1 := add(a,b)
+                  r2 := mod(r1, c)
                   g2 := addmod (a, b, c)
                 }
                 assert (r2 == g2);

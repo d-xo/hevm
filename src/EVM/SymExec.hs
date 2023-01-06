@@ -373,16 +373,16 @@ runExpr = do
       e' -> Failure asserts $ EVM.Types.TmpErr (show e')
 
 -- | Converts a given top level expr into a list of final states and the associated path conditions for each state
-flattenExpr :: Expr End -> Either EVM.Types.Error [([Prop], Expr End)]
+flattenExpr :: Expr End -> [Either EVM.Types.Error([Prop], Expr End)]
 flattenExpr = go []
   where
-    go :: [Prop] -> Expr End -> Either EVM.Types.Error [([Prop], Expr End)]
+    go :: [Prop] -> Expr End ->  [Either EVM.Types.Error([Prop], Expr End)]
     go pcs = \case
       ITE c t f -> go (PNeg ((PEq c (Lit 0))) : pcs) t <> go (PEq c (Lit 0) : pcs) f
-      e@(Revert _ _) -> Right [(pcs, e)]
-      e@(Return _ _ _) -> Right [(pcs, e)]
-      Failure _ o@(TmpErr s) ->  Left o
-      e@(Failure _ _) -> Right [(pcs, e)]
+      e@(Revert _ _) -> [Right (pcs, e)]
+      e@(Return _ _ _) -> [Right (pcs, e)]
+      Failure _ o@(TmpErr _) ->  [Left o]
+      e@(Failure _ _) -> [Right (pcs, e)]
       GVar _ -> error "cannot flatten an Expr containing a GVar"
 
 -- | Strips unreachable branches from a given expr
@@ -501,38 +501,56 @@ verify solvers opts preState maybepost = do
   case maybepost of
     Nothing -> pure $ Right (expr, [Qed ()])
     Just post -> do
+      let flattenedExpr = flattenExpr expr
       let
         -- Filter out any leaves that can be statically shown to be safe
-        canViolate = case flattenExpr expr of
-            o@(Left _) -> o
-            (Right x) -> Right $ flip filter x $ \(_, leaf) -> case evalProp (post preState leaf) of
-              PBool True -> False
-              _ -> True
+        canViolate = flip filter flattenedExpr $ \case
+          Right (_, leaf) -> case evalProp (post preState leaf) of
+                               PBool True -> False
+                               _ -> True
+          Left _          -> False
         assumes = view constraints preState
-      if not (tooLargeCopy expr) && isRight canViolate then do
-        let withQueries = fmap (\(pcs, leaf) -> (assertProps (PNeg (post preState leaf) : assumes <> extractProps leaf <> pcs), leaf)) (getRight canViolate)
+      if not (tooLargeCopy expr) then do
+        let withQueries = flip fmap canViolate $ \case
+                                    Right (pcs, leaf) -> Right (assertProps (PNeg (post preState leaf) : assumes <> extractProps leaf <> pcs), leaf)
+                                    Left a -> Left a
         putStrLn $ "Checking for reachability of " <> show (length withQueries) <> " potential property violation(s)"
-        when (debug opts) $ forM_ (zip [(1 :: Int)..] withQueries) $ \(idx, (q, leaf)) -> do
-          TL.writeFile
-            ("query-" <> show idx <> ".smt2")
-            ("; " <> (TL.pack $ show leaf) <> "\n\n" <> formatSMT2 q <> "\n\n(check-sat)")
+        when (debug opts) $ forM_ (zip [(1 :: Int)..] withQueries) $ \case
+          (idx, Right (q, leaf)) -> do
+            TL.writeFile
+              ("query-" <> show idx <> ".smt2")
+              ("; " <> (TL.pack $ show leaf) <> "\n\n" <> formatSMT2 q <> "\n\n(check-sat)")
+          (idx, Left _) -> TL.writeFile ("query-" <> show idx <> ".smt2") "INVALID QUERY"
         -- Dispatch the remaining branches to the solver to check for violations
         results <- dispatch withQueries
-        let cexs = filter (\(res, _) -> not . isUnsat $ res) results
+        putStrLn $ "results in verify: " <> show results
+        let cexs = filter  findCexs results
+        -- TODO improve this, it doesn't care about Error-s
         pure $ if Prelude.null cexs then Right (expr, [Qed ()]) else Right (expr, fmap toVRes cexs)
       else do
+        putStrLn "Left in verify"
         if tooLargeCopy expr then pure $ Left (EVM.Types.TmpErr "Too Large Copy")
-                             else pure $ Left $ getLeft canViolate
+                             else pure $ Left (EVM.Types.TmpErr "Whatever")
   where
-    dispatch queries = flip mapConcurrently queries $ \(query, leaf) -> do
-      res <- checkSat solvers query
-      pure (res, leaf)
-    toVRes :: (CheckSatResult, Expr End) -> VerifyResult
-    toVRes (res, leaf) = case res of
-      Sat model -> Cex (leaf, model)
-      EVM.SMT.Unknown -> Timeout leaf
-      Unsat -> Qed ()
-      Error e -> error $ "Internal Error: solver responded with error: " <> show e
+    findCexs :: Either EVM.Types.Error (CheckSatResult, Expr 'End) -> Bool
+    findCexs = \case
+      Right (res, _) -> not . isUnsat $ res
+      _ -> False
+
+    dispatch :: [Either EVM.Types.Error (SMT2, Expr 'End)] -> IO [Either EVM.Types.Error (CheckSatResult, Expr 'End)]
+    dispatch queries = flip mapConcurrently queries $ \case
+      Right (query, leaf) -> do
+        res <- checkSat solvers query
+        pure $ Right (res, leaf)
+      -- TODO Left
+    toVRes :: Either EVM.Types.Error (CheckSatResult, Expr End) -> VerifyResult
+    toVRes = \case
+      Left _ -> error "what should we do here?? Individual errors returned?"
+      Right (res, leaf) -> case res of
+        Sat model -> Cex (leaf, model)
+        EVM.SMT.Unknown -> Timeout leaf
+        Unsat -> Qed ()
+        EVM.SMT.Error e -> error $ "Internal Error: solver responded with error: " <> show e
 
 -- | Compares two contract runtimes for trace equivalence by running two VMs and comparing the end states.
 equivalenceCheck :: SolverGroup -> ByteString -> ByteString -> VeriOpts -> Maybe (Text, [AbiType]) -> IO (Either EVM.Types.Error [(Maybe SMTCex, Prop, ProofResult () () ())])
@@ -553,7 +571,7 @@ equivalenceCheck solvers bytecodeA bytecodeB opts signature' = do
   let
       flattenedA =  flattenExpr aExprSimp
       flattenedB =  flattenExpr bExprSimp
-      differingEndStates = uncurry distinct <$> [(a,b) | a <- getRight flattenedA, b <- getRight flattenedB]
+      differingEndStates = uncurry distinct <$> [(a,b) | Right a <- flattenedA, Right b <- flattenedB]
       distinct :: ([Prop], Expr End) -> ([Prop], Expr End) -> Prop
       distinct (aProps, aEnd) (bProps, bEnd) =
         let
@@ -584,9 +602,10 @@ equivalenceCheck solvers bytecodeA bytecodeB opts signature' = do
   -- If there exists a pair of end states where this is not the case,
   -- the following constraint is satisfiable
 
-  if isLeft flattenedA || isLeft flattenedB then do
-    pure $ Left $ getLeft flattenedA -- TODO fix to be better, it's only checking flattenedA
-  else do
+  -- if isLeft flattenedA || isLeft flattenedB then do
+    -- pure $ Left $ getLeft flattenedA -- TODO fix to be better, it's only checking flattenedA
+  -- else do
+  do
     let diffEndStFilt = filter (/= PBool False) differingEndStates
     putStrLn $ "Equivalence checking " <> (show $ length diffEndStFilt) <> " combinations"
     when (debug opts) $ forM_ (zip diffEndStFilt [1 :: Integer ..]) (\(x, i) -> T.writeFile ("prop-checked-" <> show i) (T.pack $ show x))
@@ -601,7 +620,7 @@ equivalenceCheck solvers bytecodeA bytecodeB opts signature' = do
        Sat a -> return (Just a, prop, Cex ())
        Unsat -> return (Nothing, prop, Qed ())
        EVM.SMT.Unknown -> return (Nothing, prop, Timeout ())
-       Error txt -> error $ "Error while running solver: `" <> T.unpack txt <> "` SMT file was: `" <> filename <> "`"
+       EVM.SMT.Error txt -> error $ "Error while running solver: `" <> T.unpack txt <> "` SMT file was: `" <> filename <> "`"
     return $ Right $ filter (\(_, _, res) -> res /= Qed ()) results
 
 both' :: (a -> b) -> (a, a) -> (b, b)
@@ -610,19 +629,19 @@ both' f (x, y) = (f x, f y)
 produceModels :: SolverGroup -> Expr End -> IO (Either EVM.Types.Error [(Expr End, CheckSatResult)])
 produceModels solvers expr = do
   let flattened = flattenExpr expr
-      flattenedNoError = getRight flattened
-      withQueries = fmap (first assertProps) flattenedNoError
+      withQueries = fmap (first (assertProps)) $ fmap getRight flattened
   results <- flip mapConcurrently withQueries $ \(query, leaf) -> do
     res <- checkSat solvers query
     pure (res, leaf)
-  if isLeft flattened then pure $ Left $ getLeft flattened
-  else pure $ Right $ fmap swap $ filter (\(res, _) -> not . isUnsat $ res) results
+  -- if isLeft flattened then pure $ Left $ getLeft flattened
+  -- else pure $ Right $ fmap swap $ filter (\(res, _) -> not . isUnsat $ res) results
+  pure $ Right $ fmap swap $ filter (\(res, _) -> not . isUnsat $ res) results
 
 showModel :: Expr Buf -> (Expr End, CheckSatResult) -> IO ()
 showModel cd (expr, res) = do
   case res of
     Unsat -> pure () -- ignore unreachable branches
-    Error e -> error $ "Internal error: smt solver returned an error: " <> show e
+    EVM.SMT.Error e -> error $ "Internal error: smt solver returned an error: " <> show e
     EVM.SMT.Unknown -> do
       putStrLn "--- Branch ---"
       putStrLn ""

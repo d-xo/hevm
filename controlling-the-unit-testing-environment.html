@@ -32,6 +32,7 @@
 
     </head>
     <body>
+    <div id="body-container">
         <!-- Provide site root to javascript -->
         <script>
             var path_to_root = "";
@@ -69,10 +70,12 @@
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
             var html = document.querySelector('html');
-            var sidebar = 'hidden';
+            var sidebar = null;
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
             }
             html.classList.remove('sidebar-visible');
             html.classList.add("sidebar-" + sidebar);
@@ -85,11 +88,33 @@
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
 
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
         <div id="page-wrapper" class="page-wrapper">
 
             <div class="page">
                                 <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky bordered">
+                <div id="menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
                         <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
                             <i class="fa fa-bars"></i>
@@ -144,7 +169,7 @@
                         <h1 id="controlling-the-unit-testing-environment"><a class="header" href="#controlling-the-unit-testing-environment">controlling the unit testing environment</a></h1>
 <h2 id="cheat-codes"><a class="header" href="#cheat-codes">Cheat codes</a></h2>
 <p>Since Hevm is an EVM implementation mainly dedicated to testing and exploration, it features a set of <code>cheat codes</code> which can manipulate the environment in which the execution is run.</p>
-<p>These can be accessed by calling into a contract (typically called <code>Hevm</code>) at address <code>0x7109709ECfa91a80626fF3989D68f67F5b1DD12D</code>, which implements the following methods:</p>
+<p>These can be accessed by calling into a contract (typically called <code>Vm</code>) at address <code>0x7109709ECfa91a80626fF3989D68f67F5b1DD12D</code>, which implements the following methods:</p>
 <ul>
 <li>
 <p><code>function warp(uint x) public</code>
@@ -153,6 +178,15 @@ Sets the block timestamp to <code>x</code>.</p>
 <li>
 <p><code>function roll(uint x) public</code>
 Sets the block number to <code>x</code>.</p>
+</li>
+<li>
+<p><code>function assume(bool b) public</code>
+Add the condition <code>b</code> to the assumption base for the current branch. This functions almost identically to <code>require</code>.</p>
+</li>
+<li>
+<p><code>function deal(uint usr, uint amt) public</code>
+Sets the eth balance of <code>usr</code> to <code>amt</code>. Note that if <code>usr</code> is a symbolic address, then it must be the address of a contract that has already been deployed.
+This restriction is in place to ensure soundness of our symbolic address encoding with respect to potential aliasing of symbolic addresses.</p>
 </li>
 <li>
 <p><code>function store(address c, bytes32 loc, bytes32 val) public</code>
@@ -181,23 +215,7 @@ cheatcode means test authors can execute arbitrary code on user machines as part
 Sets <code>msg.sender</code> to the specified <code>sender</code> for the next call.</p>
 </li>
 </ul>
-<h2 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h2>
-<p>These environment variables can be used to control block parameters:</p>
-<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Synopsis</th></tr></thead><tbody>
-<tr><td><code>DAPP_TEST_ADDRESS</code></td><td><code>0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84</code></td><td>The address to deploy the test contract to</td></tr>
-<tr><td><code>DAPP_TEST_CALLER</code></td><td><code>0x00a329c0648769a73afac7f9381e08fb43dbea72</code></td><td>The address to set <code>msg.sender</code> to when calling into the test contract</td></tr>
-<tr><td><code>DAPP_TEST_ORIGIN</code></td><td><code>0x00a329c0648769a73afac7f9381e08fb43dbea72</code></td><td>The address to set <code>tx.orgin</code> to when calling into the test contract</td></tr>
-<tr><td><code>DAPP_TEST_GAS_CREATE</code></td><td><code>0xffffffffffff</code></td><td>The gas to provide when creating the testing contract</td></tr>
-<tr><td><code>DAPP_TEST_GAS_CALL</code></td><td><code>0xffffffffffff</code></td><td>The gas to provide to each call made to the testing contract</td></tr>
-<tr><td><code>DAPP_TEST_BALANCE</code></td><td><code>0xffffffffffffffffffffffff</code></td><td>The balance to provide to <code>DAPP_TEST_ADDRESS</code></td></tr>
-<tr><td><code>DAPP_TEST_COINBASE</code></td><td><code>0x0000000000000000000000000000000000000000</code></td><td>The coinbase address. Will be set to the coinbase for the block at <code>DAPP_TEST_NUMBER</code> if rpc is enabled</td></tr>
-<tr><td><code>DAPP_TEST_NUMBER</code></td><td><code>0</code></td><td>The block number. Will be set to the latest block if rpc is enabled</td></tr>
-<tr><td><code>DAPP_TEST_TIMESTAMP</code></td><td><code>0</code></td><td>The block timestamp. Will be set to the timestamp for the block at <code>DAPP_TEST_NUMBER</code> if rpc is enabled</td></tr>
-<tr><td><code>DAPP_TEST_GAS_LIMIT</code></td><td><code>0</code></td><td>The block gas limit to use</td></tr>
-<tr><td><code>DAPP_TEST_GAS_PRICE</code></td><td><code>0</code></td><td>The gas price to use</td></tr>
-<tr><td><code>DAPP_TEST_PREVRANDAO</code></td><td><code>0</code></td><td>The value for PREVRANDAO. Will be set to the value for the block at <code>DAPP_TEST_NUMBER</code> if rpc is enabled</td></tr>
-</tbody></table>
-</div>
+
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
@@ -246,5 +264,6 @@ Sets <code>msg.sender</code> to the specified <code>sender</code> for the next c
         <!-- Custom JS scripts -->
 
 
+    </div>
     </body>
 </html>

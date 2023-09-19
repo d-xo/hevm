@@ -32,6 +32,7 @@
 
     </head>
     <body>
+    <div id="body-container">
         <!-- Provide site root to javascript -->
         <script>
             var path_to_root = "";
@@ -69,10 +70,12 @@
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
             var html = document.querySelector('html');
-            var sidebar = 'hidden';
+            var sidebar = null;
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
             }
             html.classList.remove('sidebar-visible');
             html.classList.add("sidebar-" + sidebar);
@@ -85,11 +88,33 @@
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
 
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
         <div id="page-wrapper" class="page-wrapper">
 
             <div class="page">
                                 <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky bordered">
+                <div id="menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
                         <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
                             <i class="fa fa-bars"></i>
@@ -144,17 +169,19 @@
                         <h1 id="hevm-symbolic"><a class="header" href="#hevm-symbolic"><code>hevm symbolic</code></a></h1>
 <pre><code class="language-sh">Usage: hevm symbolic [--code TEXT] [--calldata TEXT] [--address ADDR]
                      [--caller ADDR] [--origin ADDR] [--coinbase ADDR]
-                     [--value W256] [--nonce W256] [--gas W256] [--number W256]
-                     [--timestamp W256] [--basefee W256] [--priority-fee W256]
-                     [--gaslimit W256] [--gasprice W256] [--create]
-                     [--maxcodesize W256] [--prevrandao W256] [--chainid W256]
-                     [--rpc TEXT] [--block W256] [--state STRING]
-                     [--cache STRING] [--json-file STRING] [--dapp-root STRING]
-                     [--storage-model STORAGEMODEL] [--sig TEXT]
-                     [--arg STRING]... [--debug] [--get-models] [--show-tree]
-                     [--smttimeout NATURAL] [--max-iterations INTEGER]
-                     [--solver TEXT] [--smtdebug] [--assertions [WORD256]]
-                     [--ask-smt-iterations INTEGER]
+                     [--value W256] [--nonce WORD64] [--gas WORD64]
+                     [--number W256] [--timestamp W256] [--basefee W256]
+                     [--priority-fee W256] [--gaslimit WORD64] [--gasprice W256]
+                     [--create] [--maxcodesize W256] [--prev-randao W256]
+                     [--chainid W256] [--rpc TEXT] [--block W256]
+                     [--root STRING] [--project-type PROJECTTYPE]
+                     [--initial-storage INITIALSTORAGE] [--sig TEXT]
+                     [--arg STRING]... [--get-models] [--show-tree]
+                     [--show-reachable-tree] [--smttimeout NATURAL]
+                     [--max-iterations INTEGER] [--solver TEXT] [--smtdebug]
+                     [--assertions [WORD256]] [--ask-smt-iterations INTEGER]
+                     [--num-solvers NATURAL]
+                     [--loop-detection-heuristic LOOPHEURISTIC]
 
 Available options:
   -h,--help                Show this help text
@@ -165,44 +192,49 @@ Available options:
   --origin ADDR            Tx: origin
   --coinbase ADDR          Block: coinbase
   --value W256             Tx: Eth amount
-  --nonce W256             Nonce of origin
-  --gas W256               Tx: gas amount
+  --nonce WORD64           Nonce of origin
+  --gas WORD64             Tx: gas amount
   --number W256            Block: number
   --timestamp W256         Block: timestamp
   --basefee W256           Block: base fee
   --priority-fee W256      Tx: priority fee
-  --gaslimit W256          Tx: gas limit
+  --gaslimit WORD64        Tx: gas limit
   --gasprice W256          Tx: gas price
   --create                 Tx: creation
   --maxcodesize W256       Block: max code size
-  --prevrandao W256        Block: prevrandao
+  --prev-randao W256       Block: prevRandao
   --chainid W256           Env: chainId
   --rpc TEXT               Fetch state from a remote node
   --block W256             Block state is be fetched from
-  --state STRING           Path to state repository
-  --cache STRING           Path to rpc cache repository
-  --json-file STRING       Filename or path to dapp build output (default: out/*.solc.json)
-  --dapp-root STRING       Path to dapp project root directory (default: . )
-  --storage-model STORAGEMODEL
-                           Select storage model: ConcreteS, SymbolicS (default)
-                           or InitialS
+  --root STRING            Path to project root directory (default: . )
+  --project-type PROJECTTYPE
+                           Is this a Foundry or DappTools project (default:
+                           Foundry)
+  --initial-storage INITIALSTORAGE
+                           Starting state for storage: Empty, Abstract (default
+                           Abstract)
   --sig TEXT               Signature of types to decode / encode
   --arg STRING             Values to encode
-  --debug                  Run interactively
   --get-models             Print example testcase for each execution path
   --show-tree              Print branches explored in tree view
-  --smttimeout NATURAL     Timeout given to SMT solver in milliseconds (default:
-                           60000)
+  --show-reachable-tree    Print only reachable branches explored in tree view
+  --smttimeout NATURAL     Timeout given to SMT solver in seconds (default: 300)
   --max-iterations INTEGER Number of times we may revisit a particular branching
                            point
   --solver TEXT            Used SMT solver: z3 (default) or cvc5
   --smtdebug               Print smt queries sent to the solver
-  --assertions [WORD256]   Comma separated list of solc panic codes to check for
-                           (default: everything except arithmetic overflow)
+  --assertions [WORD256]   Comma seperated list of solc panic codes to check for
+                           (default: user defined assertion violations only)
   --ask-smt-iterations INTEGER
                            Number of times we may revisit a particular branching
                            point before we consult the smt solver to check
-                           reachability (default: 5)
+                           reachability (default: 1) (default: 1)
+  --num-solvers NATURAL    Number of solver instances to use (default: number of
+                           cpu cores)
+  --loop-detection-heuristic LOOPHEURISTIC
+                           Which heuristic should be used to determine if we are
+                           in a loop: StackBased (default) or Naive
+                           (default: StackBased)
 </code></pre>
 <p>Run a symbolic execution against the given parameters, searching for assertion violations.</p>
 <p>Counterexamples will be returned for any reachable assertion violations. Where an assertion
@@ -215,7 +247,6 @@ although this behaviour can be customised via the <code>--assertions</code> flag
 will return counterexamples for arithmetic overflow (<code>0x11</code>) and user defined assertions (<code>0x01</code>):</p>
 <pre><code>hevm symbolic --code $CODE --assertions '[0x01, 0x11]'
 </code></pre>
-<p><code>--debug</code> enters an interactive debugger where the user can navigate the full execution space.</p>
 <p>The default value for <code>calldata</code> and <code>caller</code> are symbolic values, but can be specialized to concrete functions with their corresponding flags.</p>
 <p>One can also specialize specific arguments to a function signature, while leaving others abstract.
 If <code>--sig</code> is given, calldata is assumed to be of the form suggested by the function signature. With this flag, specific arguments can be instantiated to concrete values via the <code>--arg</code> flag.</p>
@@ -233,11 +264,10 @@ If <code>--sig</code> is given, calldata is assumed to be of the form suggested 
 This can be useful for automatic test case generation.</p>
 <p>The default timeout for SMT queries is no timeout. If your program is taking longer than a couple of minutes to run,
 you can experiment with configuring the timeout to somewhere around 10s by doing <code>--smttimeout 10000</code></p>
-<p>Storage can take one of three forms, defaulting to <code>SymbolicS</code> unless <code>--create</code> is provided, in which case it defaults to <code>InitialS</code>:</p>
+<p>Storage can be initialized in two ways:</p>
 <ul>
-<li><code>SymbolicS</code>: The default value of SLOAD is a symbolic value without further constraints. SLOAD and SSTORE can operate on symbolic locations.</li>
-<li><code>InitialS</code>: The default value of SLOAD is zero. SLOAD and SSTORE can operate on symbolic locations.</li>
-<li><code>ConcreteS</code>: Storage defaults to zero or fetched from an rpc node if <code>--rpc</code> is provided. SLOAD or SSTOREs on symbolic locations will result in a runtime error.</li>
+<li><code>Empty</code>: all storage slots for all contracts are initialized to zero</li>
+<li><code>Abstract</code>: all storage slots are initialized as unconstrained abstract values</li>
 </ul>
 <p><code>hevm</code> uses an eager approach for symbolic execution, meaning that it will first attempt to explore
 all branches in the program (without querying the smt solver to check if they are reachable or not).
@@ -298,5 +328,6 @@ appropriate value.</p>
         <!-- Custom JS scripts -->
 
 
+    </div>
     </body>
 </html>

@@ -33,6 +33,7 @@
 
     </head>
     <body>
+    <div id="body-container">
         <!-- Provide site root to javascript -->
         <script>
             var path_to_root = "";
@@ -70,10 +71,12 @@
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
             var html = document.querySelector('html');
-            var sidebar = 'hidden';
+            var sidebar = null;
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
             }
             html.classList.remove('sidebar-visible');
             html.classList.add("sidebar-" + sidebar);
@@ -86,11 +89,33 @@
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
 
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
         <div id="page-wrapper" class="page-wrapper">
 
             <div class="page">
                                 <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky bordered">
+                <div id="menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
                         <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
                             <i class="fa fa-bars"></i>
@@ -148,8 +173,7 @@ analysis of evm bytecode. It can:</p>
 <ul>
 <li>symbolically execute a smart contract and find reachable assertion violations</li>
 <li>prove equivalence of two different bytecode objects</li>
-<li>execute (symbolic and concrete) solidity tests written using <a href="https://github.com/dapphub/ds-test/"><code>ds-test</code></a> (a.k.a &quot;foundry tests&quot;)</li>
-<li>visually debug arbitrary evm executions (both concrete &amp; symbolic)</li>
+<li>execute symbolic solidity tests written using <a href="https://github.com/dapphub/ds-test/"><code>ds-test</code></a> (a.k.a &quot;foundry tests&quot;)</li>
 <li>fetch remote state via rpc</li>
 <li>automatically create test cases</li>
 </ul>
@@ -157,17 +181,19 @@ analysis of evm bytecode. It can:</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="hevm-symbolic"><a class="header" href="#hevm-symbolic"><code>hevm symbolic</code></a></h1>
 <pre><code class="language-sh">Usage: hevm symbolic [--code TEXT] [--calldata TEXT] [--address ADDR]
                      [--caller ADDR] [--origin ADDR] [--coinbase ADDR]
-                     [--value W256] [--nonce W256] [--gas W256] [--number W256]
-                     [--timestamp W256] [--basefee W256] [--priority-fee W256]
-                     [--gaslimit W256] [--gasprice W256] [--create]
-                     [--maxcodesize W256] [--prevrandao W256] [--chainid W256]
-                     [--rpc TEXT] [--block W256] [--state STRING]
-                     [--cache STRING] [--json-file STRING] [--dapp-root STRING]
-                     [--storage-model STORAGEMODEL] [--sig TEXT]
-                     [--arg STRING]... [--debug] [--get-models] [--show-tree]
-                     [--smttimeout NATURAL] [--max-iterations INTEGER]
-                     [--solver TEXT] [--smtdebug] [--assertions [WORD256]]
-                     [--ask-smt-iterations INTEGER]
+                     [--value W256] [--nonce WORD64] [--gas WORD64]
+                     [--number W256] [--timestamp W256] [--basefee W256]
+                     [--priority-fee W256] [--gaslimit WORD64] [--gasprice W256]
+                     [--create] [--maxcodesize W256] [--prev-randao W256]
+                     [--chainid W256] [--rpc TEXT] [--block W256]
+                     [--root STRING] [--project-type PROJECTTYPE]
+                     [--initial-storage INITIALSTORAGE] [--sig TEXT]
+                     [--arg STRING]... [--get-models] [--show-tree]
+                     [--show-reachable-tree] [--smttimeout NATURAL]
+                     [--max-iterations INTEGER] [--solver TEXT] [--smtdebug]
+                     [--assertions [WORD256]] [--ask-smt-iterations INTEGER]
+                     [--num-solvers NATURAL]
+                     [--loop-detection-heuristic LOOPHEURISTIC]
 
 Available options:
   -h,--help                Show this help text
@@ -178,44 +204,49 @@ Available options:
   --origin ADDR            Tx: origin
   --coinbase ADDR          Block: coinbase
   --value W256             Tx: Eth amount
-  --nonce W256             Nonce of origin
-  --gas W256               Tx: gas amount
+  --nonce WORD64           Nonce of origin
+  --gas WORD64             Tx: gas amount
   --number W256            Block: number
   --timestamp W256         Block: timestamp
   --basefee W256           Block: base fee
   --priority-fee W256      Tx: priority fee
-  --gaslimit W256          Tx: gas limit
+  --gaslimit WORD64        Tx: gas limit
   --gasprice W256          Tx: gas price
   --create                 Tx: creation
   --maxcodesize W256       Block: max code size
-  --prevrandao W256        Block: prevrandao
+  --prev-randao W256       Block: prevRandao
   --chainid W256           Env: chainId
   --rpc TEXT               Fetch state from a remote node
   --block W256             Block state is be fetched from
-  --state STRING           Path to state repository
-  --cache STRING           Path to rpc cache repository
-  --json-file STRING       Filename or path to dapp build output (default: out/*.solc.json)
-  --dapp-root STRING       Path to dapp project root directory (default: . )
-  --storage-model STORAGEMODEL
-                           Select storage model: ConcreteS, SymbolicS (default)
-                           or InitialS
+  --root STRING            Path to project root directory (default: . )
+  --project-type PROJECTTYPE
+                           Is this a Foundry or DappTools project (default:
+                           Foundry)
+  --initial-storage INITIALSTORAGE
+                           Starting state for storage: Empty, Abstract (default
+                           Abstract)
   --sig TEXT               Signature of types to decode / encode
   --arg STRING             Values to encode
-  --debug                  Run interactively
   --get-models             Print example testcase for each execution path
   --show-tree              Print branches explored in tree view
-  --smttimeout NATURAL     Timeout given to SMT solver in milliseconds (default:
-                           60000)
+  --show-reachable-tree    Print only reachable branches explored in tree view
+  --smttimeout NATURAL     Timeout given to SMT solver in seconds (default: 300)
   --max-iterations INTEGER Number of times we may revisit a particular branching
                            point
   --solver TEXT            Used SMT solver: z3 (default) or cvc5
   --smtdebug               Print smt queries sent to the solver
-  --assertions [WORD256]   Comma separated list of solc panic codes to check for
-                           (default: everything except arithmetic overflow)
+  --assertions [WORD256]   Comma seperated list of solc panic codes to check for
+                           (default: user defined assertion violations only)
   --ask-smt-iterations INTEGER
                            Number of times we may revisit a particular branching
                            point before we consult the smt solver to check
-                           reachability (default: 5)
+                           reachability (default: 1) (default: 1)
+  --num-solvers NATURAL    Number of solver instances to use (default: number of
+                           cpu cores)
+  --loop-detection-heuristic LOOPHEURISTIC
+                           Which heuristic should be used to determine if we are
+                           in a loop: StackBased (default) or Naive
+                           (default: StackBased)
 </code></pre>
 <p>Run a symbolic execution against the given parameters, searching for assertion violations.</p>
 <p>Counterexamples will be returned for any reachable assertion violations. Where an assertion
@@ -228,7 +259,6 @@ although this behaviour can be customised via the <code>--assertions</code> flag
 will return counterexamples for arithmetic overflow (<code>0x11</code>) and user defined assertions (<code>0x01</code>):</p>
 <pre><code>hevm symbolic --code $CODE --assertions '[0x01, 0x11]'
 </code></pre>
-<p><code>--debug</code> enters an interactive debugger where the user can navigate the full execution space.</p>
 <p>The default value for <code>calldata</code> and <code>caller</code> are symbolic values, but can be specialized to concrete functions with their corresponding flags.</p>
 <p>One can also specialize specific arguments to a function signature, while leaving others abstract.
 If <code>--sig</code> is given, calldata is assumed to be of the form suggested by the function signature. With this flag, specific arguments can be instantiated to concrete values via the <code>--arg</code> flag.</p>
@@ -246,11 +276,10 @@ If <code>--sig</code> is given, calldata is assumed to be of the form suggested 
 This can be useful for automatic test case generation.</p>
 <p>The default timeout for SMT queries is no timeout. If your program is taking longer than a couple of minutes to run,
 you can experiment with configuring the timeout to somewhere around 10s by doing <code>--smttimeout 10000</code></p>
-<p>Storage can take one of three forms, defaulting to <code>SymbolicS</code> unless <code>--create</code> is provided, in which case it defaults to <code>InitialS</code>:</p>
+<p>Storage can be initialized in two ways:</p>
 <ul>
-<li><code>SymbolicS</code>: The default value of SLOAD is a symbolic value without further constraints. SLOAD and SSTORE can operate on symbolic locations.</li>
-<li><code>InitialS</code>: The default value of SLOAD is zero. SLOAD and SSTORE can operate on symbolic locations.</li>
-<li><code>ConcreteS</code>: Storage defaults to zero or fetched from an rpc node if <code>--rpc</code> is provided. SLOAD or SSTOREs on symbolic locations will result in a runtime error.</li>
+<li><code>Empty</code>: all storage slots for all contracts are initialized to zero</li>
+<li><code>Abstract</code>: all storage slots are initialized as unconstrained abstract values</li>
 </ul>
 <p><code>hevm</code> uses an eager approach for symbolic execution, meaning that it will first attempt to explore
 all branches in the program (without querying the smt solver to check if they are reachable or not).
@@ -264,28 +293,76 @@ iterations is known in advance, you may be able to speed up execution by setting
 appropriate value.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="hevm-equivalence"><a class="header" href="#hevm-equivalence"><code>hevm equivalence</code></a></h1>
 <pre><code class="language-sh">Usage: hevm equivalence --code-a TEXT --code-b TEXT [--sig TEXT]
+                        [--arg STRING]... [--calldata TEXT]
+                        [--smttimeout NATURAL] [--max-iterations INTEGER]
+                        [--solver TEXT] [--smtoutput] [--smtdebug]
+                        [--ask-smt-iterations INTEGER]
+                        [--loop-detection-heuristic LOOPHEURISTIC]
+
+Available options:
+  -h,--help                Show this help text
+  --code-a TEXT            Bytecode of the first program
+  --code-b TEXT            Bytecode of the second program
+  --sig TEXT               Signature of types to decode / encode
+  --arg STRING             Values to encode
+  --calldata TEXT          Tx: calldata
+  --smttimeout NATURAL     Timeout given to SMT solver in seconds (default: 300)
+  --max-iterations INTEGER Number of times we may revisit a particular branching
+                           point
+  --solver TEXT            Used SMT solver: z3 (default) or cvc5
+  --smtoutput              Print verbose smt output
+  --smtdebug               Print smt queries sent to the solver
+  --ask-smt-iterations INTEGER
+                           Number of times we may revisit a particular branching
+                           point before we consult the smt solver to check
+                           reachability (default: 1) (default: 1)
+  --loop-detection-heuristic LOOPHEURISTIC
+                           Which heuristic should be used to determine if we are
+                           in a loop: StackBased (default) or Naive
+                           (default: StackBased)
 </code></pre>
 <p>Symbolically execute both the code given in <code>--code-a</code> and <code>--code-b</code> and try to prove equivalence between their outputs and storages.</p>
 <p>If <code>--sig</code> is given, calldata is assumed to take the form of the function given.
 If left out, calldata is a fully abstract buffer of at most 256 bytes.</p>
-<h3 id="hevm-dapp-test"><a class="header" href="#hevm-dapp-test"><code>hevm dapp-test</code></a></h3>
-<pre><code>Usage: hevm dapp-test [--json-file STRING] [--dapp-root STRING] [--debug]
-                      [--fuzz-runs INT] [--replay (TEXT,BYTESTRING)] [--depth INT]
-                      [--rpc TEXT] [--verbose INT] [--coverage] [--state STRING]
-                      [--match STRING] [--smttimeout INT] [--max-iterations INT]
-                      [--solver STRING] [--cache STRING] [--cov-match STRING]
-</code></pre>
-<p>Run any ds-test testing functions. Run under the hood whenever <code>dapp test</code> or <code>dapp debug</code> is called. Testing functions prefixed with <code>test</code> will be executed concretely. If concrete test functions have been given arguments, they will be randomly instantiated and run <code>--fuzz-runs</code> number of times. If testing functions are prefixed with <code>prove</code> they will be symbolically executed. In <code>--debug</code> mode, property based tests will not be available unless given specific arguments using <code>--replay</code>.</p>
-<p>The <code>smttimeout</code>, <code>max-iterations</code> and <code>solver</code> options have the same semantics as in <code>hevm symbolic</code></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="hevm-exec"><a class="header" href="#hevm-exec"><code>hevm exec</code></a></h1>
 <p>Run an EVM computation using specified parameters, using an interactive debugger when <code>--debug</code> flag is given.</p>
 <pre><code class="language-sh">Usage: hevm exec [--code TEXT] [--calldata TEXT] [--address ADDR]
                  [--caller ADDR] [--origin ADDR] [--coinbase ADDR]
-                 [--value W256] [--nonce W256] [--gas W256]
-                 [--number W256] [--timestamp W256] [--gaslimit W256]
-                 [--gasprice W256] [--create] [--maxcodesize W256]
-                 [--prevrandao W256] [--debug] [--state STRING] [--rpc TEXT]
-                 [--block W256] [--json-file STRING]
+                 [--value W256] [--nonce WORD64] [--gas WORD64] [--number W256]
+                 [--timestamp W256] [--basefee W256] [--priority-fee W256]
+                 [--gaslimit WORD64] [--gasprice W256] [--create]
+                 [--maxcodesize W256] [--prev-randao W256] [--chainid W256]
+                 [--trace] [--rpc TEXT] [--block W256] [--root STRING]
+                 [--project-type PROJECTTYPE]
+
+Available options:
+  -h,--help                Show this help text
+  --code TEXT              Program bytecode
+  --calldata TEXT          Tx: calldata
+  --address ADDR           Tx: address
+  --caller ADDR            Tx: caller
+  --origin ADDR            Tx: origin
+  --coinbase ADDR          Block: coinbase
+  --value W256             Tx: Eth amount
+  --nonce WORD64           Nonce of origin
+  --gas WORD64             Tx: gas amount
+  --number W256            Block: number
+  --timestamp W256         Block: timestamp
+  --basefee W256           Block: base fee
+  --priority-fee W256      Tx: priority fee
+  --gaslimit WORD64        Tx: gas limit
+  --gasprice W256          Tx: gas price
+  --create                 Tx: creation
+  --maxcodesize W256       Block: max code size
+  --prev-randao W256       Block: prevRandao
+  --chainid W256           Env: chainId
+  --trace                  Dump trace
+  --rpc TEXT               Fetch state from a remote node
+  --block W256             Block state is be fetched from
+  --root STRING            Path to project root directory (default: . )
+  --project-type PROJECTTYPE
+                           Is this a Foundry or DappTools project (default:
+                           Foundry)
 </code></pre>
 <p>Minimum required flags:</p>
 <p><code>--code</code> or (<code>--rpc</code> and <code>--address</code>).</p>
@@ -294,63 +371,16 @@ If left out, calldata is a fully abstract buffer of at most 256 bytes.</p>
 <p>Simple example usage:</p>
 <pre><code class="language-sh">hevm exec --code 0x647175696e6550383480393834f3 --gas 0xff
 </code></pre>
-<p>Debug a mainnet transaction (older transactions require archive node):</p>
+<p>Execute a mainnet transaction (older transactions require archive node):</p>
 <pre><code class="language-sh">export ETH_RPC_URL=https://mainnet.infura.io/v3/YOUR_API_KEY_HERE
 export TXHASH=0xd2235b9554e51e8ff5b3de62039d5ab6e591164b593d892e42b2ffe0e3e4e426
-hevm exec --caller $(seth tx $TXHASH from) --address $(seth tx $TXHASH to) --calldata $(seth tx $TXHASH input) --rpc $ETH_RPC_URL --block $(($(seth tx $TXHASH blockNumber)-1)) --gas $(seth tx $TXHASH gas) --debug
+hevm exec --caller $(seth tx $TXHASH from) --address $(seth tx $TXHASH to) --calldata $(seth tx $TXHASH input) --rpc $ETH_RPC_URL --block $(($(seth tx $TXHASH blockNumber)-1)) --gas $(seth tx $TXHASH gas)
 </code></pre>
-<p>If <code>--state</code> is provided, hevm will load and save state to the directory provided. Git is used as a storage model, with each hevm run creating a new commit. The directory provided must be a non empty git repository. After a run you can see the state diff by simply looking at the commit (for example <code>git show HEAD</code>).</p>
-<pre><code class="language-sh">mkdir mystate
-cd mystate &amp;&amp; git init &amp;&amp; git commit --allow-empty -m &quot;init&quot; &amp;&amp; cd ..
-hevm exec --code 0x600160015500 --state mystate --gas 0xffffff
-cd mystate &amp;&amp; git show HEAD
-</code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="hevm-dapp-test-1"><a class="header" href="#hevm-dapp-test-1"><code>hevm dapp-test</code></a></h1>
-<pre><code>Usage: hevm dapp-test [--json-file STRING] [--dapp-root STRING] [--debug]
-                      [--jsontrace] [--fuzz-runs INT] [--depth INT]
-                      [--replay (TEXT,BYTESTRING)] [--rpc TEXT] [--verbose INT]
-                      [--coverage] [--state STRING] [--cache STRING]
-                      [--match STRING] [--cov-match STRING] [--solver TEXT]
-                      [--smtdebug] [--ffi] [--smttimeout INTEGER]
-                      [--max-iterations INTEGER] [--ask-smt-iterations INTEGER]
-
-Available options:
-  -h,--help                Show this help text
-  --json-file STRING       Filename or path to dapp build output (default:
-                           out/*.solc.json)
-  --dapp-root STRING       Path to dapp project root directory (default: . )
-  --debug                  Run interactively
-  --jsontrace              Print json trace output at every step
-  --fuzz-runs INT          Number of times to run fuzz tests
-  --depth INT              Number of transactions to explore
-  --replay (TEXT,BYTESTRING)
-                           Custom fuzz case to run/debug
-  --rpc TEXT               Fetch state from a remote node
-  --verbose INT            Append call trace: {1} failures {2} all
-  --coverage               Coverage analysis
-  --state STRING           Path to state repository
-  --cache STRING           Path to rpc cache repository
-  --match STRING           Test case filter - only run methods matching regex
-  --cov-match STRING       Coverage filter - only print coverage for files
-                           matching regex
-  --solver TEXT            Used SMT solver: z3 (default) or cvc4
-  --smtdebug               Print smt queries sent to the solver
-  --ffi                    Allow the usage of the hevm.ffi() cheatcode (WARNING:
-                           this allows test authors to execute arbitrary code on
-                           your machine)
-  --smttimeout INTEGER     Timeout given to SMT solver in milliseconds (default:
-                           60000)
-  --max-iterations INTEGER Number of times we may revisit a particular branching
-                           point
-  --ask-smt-iterations INTEGER
-                           Number of times we may revisit a particular branching
-                           point before we consult the smt solver to check
-                           reachability (default: 5)
-</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="dapp-test"><a class="header" href="#dapp-test">dapp-test</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="controlling-the-unit-testing-environment"><a class="header" href="#controlling-the-unit-testing-environment">controlling the unit testing environment</a></h1>
 <h2 id="cheat-codes"><a class="header" href="#cheat-codes">Cheat codes</a></h2>
 <p>Since Hevm is an EVM implementation mainly dedicated to testing and exploration, it features a set of <code>cheat codes</code> which can manipulate the environment in which the execution is run.</p>
-<p>These can be accessed by calling into a contract (typically called <code>Hevm</code>) at address <code>0x7109709ECfa91a80626fF3989D68f67F5b1DD12D</code>, which implements the following methods:</p>
+<p>These can be accessed by calling into a contract (typically called <code>Vm</code>) at address <code>0x7109709ECfa91a80626fF3989D68f67F5b1DD12D</code>, which implements the following methods:</p>
 <ul>
 <li>
 <p><code>function warp(uint x) public</code>
@@ -359,6 +389,15 @@ Sets the block timestamp to <code>x</code>.</p>
 <li>
 <p><code>function roll(uint x) public</code>
 Sets the block number to <code>x</code>.</p>
+</li>
+<li>
+<p><code>function assume(bool b) public</code>
+Add the condition <code>b</code> to the assumption base for the current branch. This functions almost identically to <code>require</code>.</p>
+</li>
+<li>
+<p><code>function deal(uint usr, uint amt) public</code>
+Sets the eth balance of <code>usr</code> to <code>amt</code>. Note that if <code>usr</code> is a symbolic address, then it must be the address of a contract that has already been deployed.
+This restriction is in place to ensure soundness of our symbolic address encoding with respect to potential aliasing of symbolic addresses.</p>
 </li>
 <li>
 <p><code>function store(address c, bytes32 loc, bytes32 val) public</code>
@@ -387,41 +426,7 @@ cheatcode means test authors can execute arbitrary code on user machines as part
 Sets <code>msg.sender</code> to the specified <code>sender</code> for the next call.</p>
 </li>
 </ul>
-<h2 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h2>
-<p>These environment variables can be used to control block parameters:</p>
-<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Synopsis</th></tr></thead><tbody>
-<tr><td><code>DAPP_TEST_ADDRESS</code></td><td><code>0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84</code></td><td>The address to deploy the test contract to</td></tr>
-<tr><td><code>DAPP_TEST_CALLER</code></td><td><code>0x00a329c0648769a73afac7f9381e08fb43dbea72</code></td><td>The address to set <code>msg.sender</code> to when calling into the test contract</td></tr>
-<tr><td><code>DAPP_TEST_ORIGIN</code></td><td><code>0x00a329c0648769a73afac7f9381e08fb43dbea72</code></td><td>The address to set <code>tx.orgin</code> to when calling into the test contract</td></tr>
-<tr><td><code>DAPP_TEST_GAS_CREATE</code></td><td><code>0xffffffffffff</code></td><td>The gas to provide when creating the testing contract</td></tr>
-<tr><td><code>DAPP_TEST_GAS_CALL</code></td><td><code>0xffffffffffff</code></td><td>The gas to provide to each call made to the testing contract</td></tr>
-<tr><td><code>DAPP_TEST_BALANCE</code></td><td><code>0xffffffffffffffffffffffff</code></td><td>The balance to provide to <code>DAPP_TEST_ADDRESS</code></td></tr>
-<tr><td><code>DAPP_TEST_COINBASE</code></td><td><code>0x0000000000000000000000000000000000000000</code></td><td>The coinbase address. Will be set to the coinbase for the block at <code>DAPP_TEST_NUMBER</code> if rpc is enabled</td></tr>
-<tr><td><code>DAPP_TEST_NUMBER</code></td><td><code>0</code></td><td>The block number. Will be set to the latest block if rpc is enabled</td></tr>
-<tr><td><code>DAPP_TEST_TIMESTAMP</code></td><td><code>0</code></td><td>The block timestamp. Will be set to the timestamp for the block at <code>DAPP_TEST_NUMBER</code> if rpc is enabled</td></tr>
-<tr><td><code>DAPP_TEST_GAS_LIMIT</code></td><td><code>0</code></td><td>The block gas limit to use</td></tr>
-<tr><td><code>DAPP_TEST_GAS_PRICE</code></td><td><code>0</code></td><td>The gas price to use</td></tr>
-<tr><td><code>DAPP_TEST_PREVRANDAO</code></td><td><code>0</code></td><td>The value for PREVRANDAO. Will be set to the value for the block at <code>DAPP_TEST_NUMBER</code> if rpc is enabled</td></tr>
-</tbody></table>
-</div><div style="break-before: page; page-break-before: always;"></div><h1 id="using-the-visual-debugger"><a class="header" href="#using-the-visual-debugger">Using the visual debugger</a></h1>
-<h2 id="key-bindings"><a class="header" href="#key-bindings">Key bindings</a></h2>
-<ul>
-<li><code>Esc</code>: exit debugger</li>
-<li><code>a</code>: step to start</li>
-<li><code>e</code>: step to end</li>
-<li><code>n</code>: step forwards by one instruction</li>
-<li><code>p</code>: step backwards by one instruction</li>
-<li><code>0</code>: choose the branch which does not jump</li>
-<li><code>1</code>: choose the branch which does jump</li>
-<li><code>N</code>: step to the next source position</li>
-<li><code>P</code>: step previous source position</li>
-<li><code>C-n</code>: step to the next source position and don't enter <code>CALL</code> or <code>CREATE</code></li>
-<li><code>C-p</code>: step previous source position without entering</li>
-<li><code>m</code>: toggle memory view</li>
-<li><code>Down</code> : step to next entry in the callstack / Scroll memory pane\n&quot; &lt;&gt;</li>
-<li><code>Up</code> : step to previous entry in the callstack / Scroll memory pane\n&quot; &lt;&gt;</li>
-<li><code>h</code>: show key-binding help</li>
-</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="using-the-visual-debugger"><a class="header" href="#using-the-visual-debugger">using the visual debugger</a></h1>
 
                     </main>
 
@@ -464,5 +469,6 @@ Sets <code>msg.sender</code> to the specified <code>sender</code> for the next c
         });
         </script>
 
+    </div>
     </body>
 </html>

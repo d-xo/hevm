@@ -32,6 +32,7 @@
 
     </head>
     <body>
+    <div id="body-container">
         <!-- Provide site root to javascript -->
         <script>
             var path_to_root = "";
@@ -69,10 +70,12 @@
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
             var html = document.querySelector('html');
-            var sidebar = 'hidden';
+            var sidebar = null;
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
             }
             html.classList.remove('sidebar-visible');
             html.classList.add("sidebar-" + sidebar);
@@ -85,11 +88,33 @@
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
 
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
         <div id="page-wrapper" class="page-wrapper">
 
             <div class="page">
                                 <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky bordered">
+                <div id="menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
                         <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
                             <i class="fa fa-bars"></i>
@@ -145,11 +170,41 @@
 <p>Run an EVM computation using specified parameters, using an interactive debugger when <code>--debug</code> flag is given.</p>
 <pre><code class="language-sh">Usage: hevm exec [--code TEXT] [--calldata TEXT] [--address ADDR]
                  [--caller ADDR] [--origin ADDR] [--coinbase ADDR]
-                 [--value W256] [--nonce W256] [--gas W256]
-                 [--number W256] [--timestamp W256] [--gaslimit W256]
-                 [--gasprice W256] [--create] [--maxcodesize W256]
-                 [--prevrandao W256] [--debug] [--state STRING] [--rpc TEXT]
-                 [--block W256] [--json-file STRING]
+                 [--value W256] [--nonce WORD64] [--gas WORD64] [--number W256]
+                 [--timestamp W256] [--basefee W256] [--priority-fee W256]
+                 [--gaslimit WORD64] [--gasprice W256] [--create]
+                 [--maxcodesize W256] [--prev-randao W256] [--chainid W256]
+                 [--trace] [--rpc TEXT] [--block W256] [--root STRING]
+                 [--project-type PROJECTTYPE]
+
+Available options:
+  -h,--help                Show this help text
+  --code TEXT              Program bytecode
+  --calldata TEXT          Tx: calldata
+  --address ADDR           Tx: address
+  --caller ADDR            Tx: caller
+  --origin ADDR            Tx: origin
+  --coinbase ADDR          Block: coinbase
+  --value W256             Tx: Eth amount
+  --nonce WORD64           Nonce of origin
+  --gas WORD64             Tx: gas amount
+  --number W256            Block: number
+  --timestamp W256         Block: timestamp
+  --basefee W256           Block: base fee
+  --priority-fee W256      Tx: priority fee
+  --gaslimit WORD64        Tx: gas limit
+  --gasprice W256          Tx: gas price
+  --create                 Tx: creation
+  --maxcodesize W256       Block: max code size
+  --prev-randao W256       Block: prevRandao
+  --chainid W256           Env: chainId
+  --trace                  Dump trace
+  --rpc TEXT               Fetch state from a remote node
+  --block W256             Block state is be fetched from
+  --root STRING            Path to project root directory (default: . )
+  --project-type PROJECTTYPE
+                           Is this a Foundry or DappTools project (default:
+                           Foundry)
 </code></pre>
 <p>Minimum required flags:</p>
 <p><code>--code</code> or (<code>--rpc</code> and <code>--address</code>).</p>
@@ -158,16 +213,10 @@
 <p>Simple example usage:</p>
 <pre><code class="language-sh">hevm exec --code 0x647175696e6550383480393834f3 --gas 0xff
 </code></pre>
-<p>Debug a mainnet transaction (older transactions require archive node):</p>
+<p>Execute a mainnet transaction (older transactions require archive node):</p>
 <pre><code class="language-sh">export ETH_RPC_URL=https://mainnet.infura.io/v3/YOUR_API_KEY_HERE
 export TXHASH=0xd2235b9554e51e8ff5b3de62039d5ab6e591164b593d892e42b2ffe0e3e4e426
-hevm exec --caller $(seth tx $TXHASH from) --address $(seth tx $TXHASH to) --calldata $(seth tx $TXHASH input) --rpc $ETH_RPC_URL --block $(($(seth tx $TXHASH blockNumber)-1)) --gas $(seth tx $TXHASH gas) --debug
-</code></pre>
-<p>If <code>--state</code> is provided, hevm will load and save state to the directory provided. Git is used as a storage model, with each hevm run creating a new commit. The directory provided must be a non empty git repository. After a run you can see the state diff by simply looking at the commit (for example <code>git show HEAD</code>).</p>
-<pre><code class="language-sh">mkdir mystate
-cd mystate &amp;&amp; git init &amp;&amp; git commit --allow-empty -m &quot;init&quot; &amp;&amp; cd ..
-hevm exec --code 0x600160015500 --state mystate --gas 0xffffff
-cd mystate &amp;&amp; git show HEAD
+hevm exec --caller $(seth tx $TXHASH from) --address $(seth tx $TXHASH to) --calldata $(seth tx $TXHASH input) --rpc $ETH_RPC_URL --block $(($(seth tx $TXHASH blockNumber)-1)) --gas $(seth tx $TXHASH gas)
 </code></pre>
 
                     </main>
@@ -218,5 +267,6 @@ cd mystate &amp;&amp; git show HEAD
         <!-- Custom JS scripts -->
 
 
+    </div>
     </body>
 </html>
